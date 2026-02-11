@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { Providers } from './providers'
 
 export const metadata: Metadata = {
   title: '어깨케어 - AI 기반 어깨 재활',
@@ -15,9 +14,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body>
-        <Providers>{children}</Providers>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
