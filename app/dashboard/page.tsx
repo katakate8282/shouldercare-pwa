@@ -23,6 +23,13 @@ interface Prescription {
   notes: string
 }
 
+interface TrainerNote {
+  id: string
+  content: string
+  is_public: boolean
+  created_at: string
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -30,6 +37,7 @@ export default function DashboardPage() {
   const [todayPain, setTodayPain] = useState<number | null>(null)
   const [weekExercises, setWeekExercises] = useState(0)
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+  const [trainerNotes, setTrainerNotes] = useState<TrainerNote[]>([])
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -42,6 +50,7 @@ export default function DashboardPage() {
           setUser(data.user)
           fetchStats(data.user.id)
           fetchPrescriptions(data.user.id)
+          fetchTrainerNotes(data.user.id)
         } else {
           router.push('/login')
         }
@@ -98,6 +107,24 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Prescriptions fetch error:', error)
+    }
+  }
+
+  const fetchTrainerNotes = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('trainer_notes')
+        .select('id, content, is_public, created_at')
+        .eq('patient_id', userId)
+        .eq('is_public', true)
+        .order('created_at', { ascending: false })
+        .limit(3)
+
+      if (!error && data) {
+        setTrainerNotes(data)
+      }
+    } catch (error) {
+      console.error('Trainer notes fetch error:', error)
     }
   }
 
@@ -167,6 +194,23 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+
+        {/* 트레이너 메모 (공개) */}
+        {trainerNotes.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-3">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">💬 트레이너 코멘트</h3>
+            <div className="space-y-2">
+              {trainerNotes.map((note) => (
+                <div key={note.id} className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-sm text-gray-800">{note.content}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(note.created_at).toLocaleDateString('ko-KR')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 처방된 운동 */}
         <div className="bg-white rounded-lg shadow-sm">
