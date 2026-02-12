@@ -44,39 +44,75 @@ export async function GET(request: NextRequest) {
 
     const kakaoUser = await userResponse.json()
 
-    // Upsert user in Supabase
+    // Check if user already exists
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
     const email = kakaoUser.kakao_account?.email || `kakao_${kakaoUser.id}@shouldercare.app`
-    const userData = {
-      email: email,
-      name: kakaoUser.kakao_account?.profile?.nickname || '사용자',
-      updated_at: new Date().toISOString()
-    }
 
-    const { data: user, error: dbError } = await supabase
+    const { data: existingUser } = await supabase
       .from('users')
-      .upsert(userData, { onConflict: 'email', ignoreDuplicates: false })
-      .select()
+      .select('id, onboarding_completed')
+      .eq('email', email)
       .single()
 
-    if (dbError) {
-      console.error('Database error:', dbError)
-      return NextResponse.redirect(new URL('/login?error=database_error', request.url))
+    let user
+    let isNewUser = false
+
+    if (existingUser) {
+      // Existing user - update
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('users')
+        .update({
+          name: kakaoUser.kakao_account?.profile?.nickname || '사용자',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingUser.id)
+        .select()
+        .single()
+
+      if (updateError) {
+        console.error('Database error:', updateError)
+        return NextResponse.redirect(new URL('/login?error=database_error', request.url))
+      }
+
+      user = updatedUser
+    } else {
+      // New user - insert
+      isNewUser = true
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          email,
+          name: kakaoUser.kakao_account?.profile?.nickname || '사용자',
+          onboarding_completed: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Database error:', insertError)
+        return NextResponse.redirect(new URL('/login?error=database_error', request.url))
+      }
+
+      user = newUser
     }
 
-    // Create session cookie (same format as email login)
+    // Decide redirect: new user or onboarding not completed → onboarding
+    const redirectPath = (isNewUser || !user.onboarding_completed) ? '/onboarding' : '/dashboard'
+
+    // Create session cookie
     const sessionData = {
       userId: user.id,
       email: user.email,
-      exp: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+      exp: Date.now() + 7 * 24 * 60 * 60 * 1000
     }
     const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64')
 
-    // Redirect to dashboard with cookies
-    const response = NextResponse.redirect(new URL('/dashboard', request.url))
+    const response = NextResponse.redirect(new URL(redirectPath, request.url))
 
     response.cookies.set('session', sessionToken, {
       httpOnly: true,
