@@ -1,27 +1,58 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/lib/stores/authStore'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  subscription_type?: string
+}
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { user, isAuthenticated, logout } = useAuthStore()
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    fetch('/api/auth/me')
+      .then(res => {
+        if (!res.ok) throw new Error('Not authenticated')
+        return res.json()
+      })
+      .then(data => {
+        if (data.user) {
+          setUser(data.user)
+        } else {
+          router.push('/login')
+        }
+      })
+      .catch(() => router.push('/login'))
+      .finally(() => setLoading(false))
+  }, [router])
+
+  const handleLogout = async () => {
+    if (confirm('로그아웃 하시겠습니까?')) {
+      await fetch('/api/auth/logout', { method: 'POST' })
       router.push('/login')
     }
-  }, [isAuthenticated, router])
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">로딩중...</div>
+      </div>
+    )
+  }
 
   if (!user) return null
 
-  const handleLogout = () => {
-    if (confirm('로그아웃 하시겠습니까?')) {
-      logout()
-      router.push('/')
-    }
-  }
+  const subscriptionLabel =
+    user.subscription_type === 'PREMIUM' ? '프리미엄 회원' :
+    user.subscription_type === 'PLATINUM_PATIENT' ? '플래티넘 환자' :
+    user.subscription_type === 'TRIAL' ? '무료 체험' : '일반 회원'
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -47,11 +78,7 @@ export default function SettingsPage() {
             <div className="flex-1">
               <p className="font-semibold text-gray-900">{user.name}</p>
               <p className="text-sm text-gray-500">{user.email}</p>
-              <p className="text-xs text-blue-600 mt-1">
-                {user.subscriptionType === 'PREMIUM' ? '프리미엄 회원' : 
-                 user.subscriptionType === 'PLATINUM_PATIENT' ? '플래티넘 환자' :
-                 user.subscriptionType === 'TRIAL' ? '무료 체험' : '미구독'}
-              </p>
+              <p className="text-xs text-blue-600 mt-1">{subscriptionLabel}</p>
             </div>
           </div>
         </div>
@@ -176,24 +203,15 @@ export default function SettingsPage() {
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t">
         <div className="max-w-7xl mx-auto px-4 flex justify-around py-3">
-          <button 
-            onClick={() => router.push('/dashboard')}
-            className="flex flex-col items-center gap-1 text-gray-400"
-          >
+          <button onClick={() => router.push('/dashboard')} className="flex flex-col items-center gap-1 text-gray-400">
             <span className="text-xl">🏠</span>
             <span className="text-xs">홈</span>
           </button>
-          <button 
-            onClick={() => router.push('/exercises')}
-            className="flex flex-col items-center gap-1 text-gray-400"
-          >
+          <button onClick={() => router.push('/exercises')} className="flex flex-col items-center gap-1 text-gray-400">
             <span className="text-xl">💪</span>
             <span className="text-xs">운동</span>
           </button>
-          <button 
-            onClick={() => router.push('/progress')}
-            className="flex flex-col items-center gap-1 text-gray-400"
-          >
+          <button onClick={() => router.push('/progress')} className="flex flex-col items-center gap-1 text-gray-400">
             <span className="text-xl">📈</span>
             <span className="text-xs">진행상황</span>
           </button>
