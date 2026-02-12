@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?error=config_error', request.url))
     }
 
-    // Exchange code for token
     const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -35,7 +34,6 @@ export async function GET(request: NextRequest) {
 
     const tokenData = await tokenResponse.json()
 
-    // Get user info from Kakao
     const userResponse = await fetch('https://kapi.kakao.com/v2/user/me', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` }
     })
@@ -50,7 +48,6 @@ export async function GET(request: NextRequest) {
 
     const email = kakaoUser.kakao_account?.email || `kakao_${kakaoUser.id}@shouldercare.app`
 
-    // Check if user already exists
     const { data: existingUser } = await supabase
       .from('users')
       .select('id, onboarding_completed')
