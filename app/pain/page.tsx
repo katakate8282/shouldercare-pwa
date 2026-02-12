@@ -1,18 +1,41 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/lib/stores/authStore'
 import { supabase } from '@/lib/supabase/client'
+
+interface User {
+  id: string
+  name: string
+  email: string
+}
 
 export default function PainLogPage() {
   const router = useRouter()
-  const { user } = useAuthStore()
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
   const [painLevel, setPainLevel] = useState(5)
   const [selectedAreas, setSelectedAreas] = useState<string[]>([])
   const [selectedPatterns, setSelectedPatterns] = useState<string[]>([])
   const [notes, setNotes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => {
+        if (!res.ok) throw new Error('Not authenticated')
+        return res.json()
+      })
+      .then(data => {
+        if (data.user) {
+          setUser(data.user)
+        } else {
+          router.push('/login')
+        }
+      })
+      .catch(() => router.push('/login'))
+      .finally(() => setLoading(false))
+  }, [router])
 
   const painAreas = [
     '어깨 전체',
@@ -48,14 +71,19 @@ export default function PainLogPage() {
   }
 
   const handleSave = async () => {
+    if (!user) {
+      alert('로그인이 필요합니다.')
+      router.push('/login')
+      return
+    }
+
     setIsSaving(true)
-    
+
     try {
-      // Save to Supabase
       const { data, error } = await supabase
         .from('pain_logs')
         .insert({
-          user_id: user?.id,
+          user_id: user.id,
           pain_level: painLevel,
           pain_areas: selectedAreas,
           pain_patterns: selectedPatterns,
@@ -73,9 +101,8 @@ export default function PainLogPage() {
 
       console.log('Saved to Supabase:', data)
 
-      // Also save to localStorage for backward compatibility
       const painLog = {
-        userId: user?.id,
+        userId: user.id,
         painLevel,
         painAreas: selectedAreas,
         painPatterns: selectedPatterns,
@@ -109,9 +136,18 @@ export default function PainLogPage() {
     return '매우 심함'
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">로딩중...</div>
+      </div>
+    )
+  }
+
+  if (!user) return null
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
@@ -124,10 +160,9 @@ export default function PainLogPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Pain Level */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">현재 통증 수준</h2>
-          
+
           <div className="text-center mb-6">
             <div className={`text-6xl font-bold ${getPainColor(painLevel)} mb-2`}>
               {painLevel}
@@ -141,7 +176,7 @@ export default function PainLogPage() {
             max="10"
             value={painLevel}
             onChange={(e) => setPainLevel(parseInt(e.target.value))}
-            className="w-full h-3 bg-gradient-to-r from-green-200 via-yellow-200 to-red-200 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-3 rounded-lg appearance-none cursor-pointer"
             style={{
               background: `linear-gradient(to right, 
                 rgb(134, 239, 172) 0%, 
@@ -149,7 +184,7 @@ export default function PainLogPage() {
                 rgb(252, 165, 165) 100%)`
             }}
           />
-          
+
           <div className="flex justify-between text-xs text-gray-500 mt-2">
             <span>0 (없음)</span>
             <span>5 (중간)</span>
@@ -157,7 +192,6 @@ export default function PainLogPage() {
           </div>
         </div>
 
-        {/* Pain Areas */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">
             통증 부위 <span className="text-sm text-gray-500">(중복 선택 가능)</span>
@@ -179,7 +213,6 @@ export default function PainLogPage() {
           </div>
         </div>
 
-        {/* Pain Patterns */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">
             언제 아픈가요? <span className="text-sm text-gray-500">(중복 선택 가능)</span>
@@ -201,7 +234,6 @@ export default function PainLogPage() {
           </div>
         </div>
 
-        {/* Notes */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">
             추가 메모 <span className="text-sm text-gray-500">(선택)</span>
@@ -214,7 +246,6 @@ export default function PainLogPage() {
           />
         </div>
 
-        {/* Save Button */}
         <button
           onClick={handleSave}
           disabled={isSaving}
