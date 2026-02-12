@@ -12,7 +12,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'google-fonts-webfonts',
         expiration: {
           maxEntries: 4,
-          maxAgeSeconds: 365 * 24 * 60 * 60 // 1 year
+          maxAgeSeconds: 365 * 24 * 60 * 60
         }
       }
     },
@@ -23,7 +23,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'google-fonts-stylesheets',
         expiration: {
           maxEntries: 4,
-          maxAgeSeconds: 7 * 24 * 60 * 60 // 1 week
+          maxAgeSeconds: 7 * 24 * 60 * 60
         }
       }
     },
@@ -34,7 +34,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'static-font-assets',
         expiration: {
           maxEntries: 4,
-          maxAgeSeconds: 7 * 24 * 60 * 60 // 1 week
+          maxAgeSeconds: 7 * 24 * 60 * 60
         }
       }
     },
@@ -45,7 +45,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'static-image-assets',
         expiration: {
           maxEntries: 64,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60
         }
       }
     },
@@ -56,7 +56,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'next-image',
         expiration: {
           maxEntries: 64,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60
         }
       }
     },
@@ -68,7 +68,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'static-video-assets',
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60
         }
       }
     },
@@ -79,7 +79,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'static-js-assets',
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60
         }
       }
     },
@@ -90,7 +90,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'static-style-assets',
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60
         }
       }
     },
@@ -101,7 +101,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'next-data',
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60
         }
       }
     },
@@ -112,7 +112,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'static-data-assets',
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60
         }
       }
     },
@@ -121,7 +121,12 @@ const withPWA = require('next-pwa')({
         const isSameOrigin = self.origin === url.origin;
         if (!isSameOrigin) return false;
         const pathname = url.pathname;
+        // API 경로 제외
         if (pathname.startsWith('/api/')) return false;
+        // 인증 관련 페이지 제외 (캐싱하면 로그인 상태가 꼬임)
+        if (pathname.startsWith('/login')) return false;
+        if (pathname.startsWith('/dashboard')) return false;
+        if (pathname.startsWith('/onboarding')) return false;
         return true;
       },
       handler: 'NetworkFirst',
@@ -129,7 +134,7 @@ const withPWA = require('next-pwa')({
         cacheName: 'others',
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+          maxAgeSeconds: 24 * 60 * 60
         },
         networkTimeoutSeconds: 10
       }
