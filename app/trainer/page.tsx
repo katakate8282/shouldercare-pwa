@@ -35,21 +35,19 @@ interface Prescription {
 }
 
 const EXERCISE_LIBRARY = [
-  { id: 'pendulum', name: '진자 운동', category: '초기 ROM', level: '초급', duration: '2:00' },
-  { id: 'passive_flexion', name: '수동적 굴곡', category: '초기 ROM', level: '초급', duration: '2:30' },
-  { id: 'passive_external_rotation', name: '수동적 외회전', category: '초기 ROM', level: '초급', duration: '2:15' },
-  { id: 'table_slide', name: '테이블 슬라이드', category: '초기 ROM', level: '초급', duration: '2:00' },
-  { id: 'wand_exercise', name: '봉 운동', category: '초기 ROM', level: '초급', duration: '3:00' },
-  { id: 'band_external_rotation', name: '밴드 외회전', category: '어깨 외회전', level: '중급', duration: '2:30' },
-  { id: 'band_internal_rotation', name: '밴드 내회전', category: '어깨 내회전', level: '중급', duration: '2:30' },
-  { id: 'dumbbell_external_rotation', name: '덤벨 외회전', category: '어깨 외회전', level: '중급', duration: '2:45' },
-  { id: 'scapular_retraction', name: '견갑골 후인', category: '견갑골 안정화', level: '초급', duration: '2:15' },
-  { id: 'scapular_protraction', name: '견갑골 전인', category: '견갑골 안정화', level: '초급', duration: '2:15' },
-  { id: 'wall_push_up', name: '벽 푸시업', category: '견갑골 안정화', level: '중급', duration: '3:00' },
-  { id: 'scaption', name: '스캡션', category: '어깨 거상', level: '중급', duration: '2:30' },
-  { id: 'lateral_raise', name: '사이드 레터럴 레이즈', category: '어깨 거상', level: '중급', duration: '2:30' },
-  { id: 'prone_y_raise', name: '엎드려 Y자 들기', category: '후면 강화', level: '중급', duration: '2:45' },
-  { id: 'prone_t_raise', name: '엎드려 T자 들기', category: '후면 강화', level: '중급', duration: '2:45' },
+  { id: 'ex-001', name: '밴드 외회전', category: '외회전', level: '초급', duration: '3:00' },
+  { id: 'ex-002', name: '견갑골 후인', category: '견갑골', level: '초급', duration: '2:30' },
+  { id: 'ex-003', name: '스캡션', category: 'ROM', level: '중급', duration: '2:00' },
+  { id: 'ex-004', name: '진자 운동', category: 'ROM', level: '초급', duration: '4:00' },
+  { id: 'ex-005', name: '벽 슬라이드', category: 'ROM', level: '초급', duration: '2:30' },
+  { id: 'ex-006', name: '밴드 내회전', category: '내회전', level: '초급', duration: '3:00' },
+  { id: 'ex-007', name: '어깨 굴곡', category: 'ROM', level: '초급', duration: '2:30' },
+  { id: 'ex-008', name: '어깨 외전', category: 'ROM', level: '초급', duration: '2:30' },
+  { id: 'ex-009', name: 'Y 레이즈', category: '근력', level: '중급', duration: '2:00' },
+  { id: 'ex-010', name: 'T 레이즈', category: '근력', level: '중급', duration: '2:00' },
+  { id: 'ex-011', name: '어깨 스트레칭', category: 'ROM', level: '초급', duration: '2:00' },
+  { id: 'ex-012', name: '어깨 회전', category: 'ROM', level: '초급', duration: '2:30' },
+  { id: 'ex-013', name: '견갑골 안정화', category: '견갑골', level: '초급', duration: '2:30' },
 ]
 
 export default function TrainerPage() {
