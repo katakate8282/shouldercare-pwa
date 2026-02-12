@@ -245,7 +245,10 @@ export default function AdminPage() {
                 {viewMode === 'assignments' && `${selectedTrainer?.name} - 환자 배정`}
               </h1>
             </div>
-            <button onClick={() => router.push('/dashboard')} className="text-sm text-blue-500">홈으로</button>
+            <div className="flex items-center gap-3">
+              <button onClick={() => router.push('/dashboard')} className="text-sm text-blue-500">홈으로</button>
+              <button onClick={() => router.push('/admin/reports')} className="text-sm bg-purple-500 text-white px-3 py-1.5 rounded-lg hover:bg-purple-600">📊 리포트</button>
+            </div>
           </div>
         </div>
       </header>
