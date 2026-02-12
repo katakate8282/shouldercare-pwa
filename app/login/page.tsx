@@ -79,7 +79,8 @@ function LoginContent() {
         setIsLoading(false)
         return
       }
-      router.push('/dashboard')
+      // 신규 가입 → 온보딩으로
+      router.push(data.redirect || '/onboarding')
     } catch (err) {
       setError('네트워크 오류가 발생했습니다.')
       setIsLoading(false)
@@ -90,8 +91,6 @@ function LoginContent() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
-
-    // TODO: 병원 코드 검증 API 연동
     setError('병원 코드 기능은 준비 중입니다. 카카오 로그인 후 병원 코드를 입력해주세요.')
     setIsLoading(false)
   }
