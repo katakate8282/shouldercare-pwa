@@ -1,20 +1,20 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 
 const ERROR_MESSAGES: Record<string, string> = {
   auth_failed: '로그인에 실패했습니다.',
   database_error: '데이터베이스 오류가 발생했습니다.',
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [tab, setTab] = useState<'social' | 'email'>('social')
-  
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -179,6 +179,23 @@ export default function LoginPage() {
           <a href="#" className="text-sm text-blue-600 hover:underline">개인정보처리방침</a>
         </div>
       </div>
+
+      <div className="mt-8 text-center">
+        <p className="text-white/80 text-sm">병원 코드가 있으신가요?</p>
+        <a href="#" className="text-white font-medium hover:underline">병원 코드로 시작하기</a>
+      </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+        <div className="text-white text-lg">로딩중...</div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
