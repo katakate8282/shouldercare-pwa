@@ -40,22 +40,30 @@ export async function POST(request: NextRequest) {
       .update({ updated_at: new Date().toISOString() })
       .eq('id', user.id)
 
+    // Decide redirect based on onboarding status
+    const redirect = user.onboarding_completed === true ? '/dashboard' : '/onboarding'
+
     // Create session
     const sessionData = {
       userId: user.id,
       email: user.email,
-      exp: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+      exp: Date.now() + 7 * 24 * 60 * 60 * 1000
     }
-
     const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64')
 
-    const response = NextResponse.json({ success: true, user: { id: user.id, email: user.email, name: user.name } })
+    const response = NextResponse.json({
+      success: true,
+      user: { id: user.id, email: user.email, name: user.name },
+      redirect
+    })
+
     response.cookies.set('session', sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7
     })
+
     response.cookies.set('user_id', user.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
