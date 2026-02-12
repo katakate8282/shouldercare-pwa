@@ -55,7 +55,7 @@ function LoginContent() {
         setIsLoading(false)
         return
       }
-      router.push('/dashboard')
+      router.push(data.redirect || '/dashboard')
     } catch (err) {
       setError('네트워크 오류가 발생했습니다.')
       setIsLoading(false)
@@ -79,7 +79,6 @@ function LoginContent() {
         setIsLoading(false)
         return
       }
-      // 신규 가입 → 온보딩으로
       router.push(data.redirect || '/onboarding')
     } catch (err) {
       setError('네트워크 오류가 발생했습니다.')
