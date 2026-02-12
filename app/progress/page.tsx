@@ -1,53 +1,38 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/lib/stores/authStore'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 
+interface User {
+  id: string
+  name: string
+  email: string
+}
+
 export default function ProgressPage() {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuthStore()
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
   const [painLogs, setPainLogs] = useState<any[]>([])
   const [weekDays, setWeekDays] = useState<string[]>([])
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login')
-      return
-    }
-
-    const fetchPainLogs = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('pain_logs')
-          .select('*')
-          .eq('user_id', user?.id)
-          .order('logged_at', { ascending: false })
-
-        if (error) {
-          console.error('Supabase error:', error)
-          const logs = JSON.parse(localStorage.getItem('painLogs') || '[]')
-          setPainLogs(logs)
+    fetch('/api/auth/me')
+      .then(res => {
+        if (!res.ok) throw new Error('Not authenticated')
+        return res.json()
+      })
+      .then(data => {
+        if (data.user) {
+          setUser(data.user)
+          fetchPainLogs(data.user.id)
         } else {
-          const convertedLogs = data.map((log) => ({
-            userId: log.user_id,
-            painLevel: log.pain_level,
-            painAreas: log.pain_areas || [],
-            painPatterns: log.pain_patterns || [],
-            notes: log.notes || '',
-            loggedAt: log.logged_at,
-          }))
-          setPainLogs(convertedLogs)
+          router.push('/login')
         }
-      } catch (error) {
-        console.error('Fetch error:', error)
-        const logs = JSON.parse(localStorage.getItem('painLogs') || '[]')
-        setPainLogs(logs)
-      }
-    }
-
-    fetchPainLogs()
+      })
+      .catch(() => router.push('/login'))
+      .finally(() => setLoading(false))
 
     const days = []
     for (let i = 6; i >= 0; i--) {
@@ -56,7 +41,45 @@ export default function ProgressPage() {
       days.push(date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }))
     }
     setWeekDays(days)
-  }, [isAuthenticated, router, user])
+  }, [router])
+
+  const fetchPainLogs = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('pain_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('logged_at', { ascending: false })
+
+      if (error) {
+        console.error('Supabase error:', error)
+        const logs = JSON.parse(localStorage.getItem('painLogs') || '[]')
+        setPainLogs(logs)
+      } else {
+        const convertedLogs = data.map((log) => ({
+          userId: log.user_id,
+          painLevel: log.pain_level,
+          painAreas: log.pain_areas || [],
+          painPatterns: log.pain_patterns || [],
+          notes: log.notes || '',
+          loggedAt: log.logged_at,
+        }))
+        setPainLogs(convertedLogs)
+      }
+    } catch (error) {
+      console.error('Fetch error:', error)
+      const logs = JSON.parse(localStorage.getItem('painLogs') || '[]')
+      setPainLogs(logs)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">로딩중...</div>
+      </div>
+    )
+  }
 
   if (!user) return null
 
@@ -76,13 +99,13 @@ export default function ProgressPage() {
     const targetDate = new Date()
     targetDate.setDate(targetDate.getDate() - (6 - index))
     targetDate.setHours(0, 0, 0, 0)
-    
+
     const dayLogs = painLogs.filter((l) => {
       const logDate = new Date(l.loggedAt)
       logDate.setHours(0, 0, 0, 0)
       return logDate.getTime() === targetDate.getTime()
     })
-    
+
     if (dayLogs.length === 0) return 0
     const sum = dayLogs.reduce((total, log) => total + log.painLevel, 0)
     return Math.round(sum / dayLogs.length * 10) / 10
@@ -121,11 +144,11 @@ export default function ProgressPage() {
 
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">지난 7일 통증 추이</h2>
-          
+
           <div className="h-64 flex items-end justify-between gap-2">
             {last7DaysPain.map((painValue, index) => {
               const percentage = (painValue / maxPain) * 100
-              
+
               return (
                 <div key={index} className="flex-1 flex flex-col items-center">
                   <div className="w-full flex flex-col items-center justify-end h-52">
@@ -165,7 +188,7 @@ export default function ProgressPage() {
 
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">최근 활동</h2>
-          
+
           {painLogs.length === 0 ? (
             <p className="text-center text-gray-500 py-8">아직 기록이 없습니다</p>
           ) : (
