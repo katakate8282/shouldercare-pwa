@@ -57,7 +57,8 @@ export default function TrainerPage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [currentPrescriptions, setCurrentPrescriptions] = useState<Prescription[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
+  const [patientSearchQuery, setPatientSearchQuery] = useState('')
+  const [exerciseSearchQuery, setExerciseSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('전체')
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<typeof EXERCISE_LIBRARY[0] | null>(null)
@@ -172,7 +173,7 @@ export default function TrainerPage() {
   const categories = ['전체', ...Array.from(new Set(EXERCISE_LIBRARY.map(e => e.category)))]
 
   const filteredExercises = EXERCISE_LIBRARY.filter(e => {
-    const matchSearch = e.name.includes(searchQuery) || e.category.includes(searchQuery)
+    const matchSearch = exerciseSearchQuery === '' || e.name.includes(exerciseSearchQuery)
     const matchCategory = categoryFilter === '전체' || e.category === categoryFilter
     return matchSearch && matchCategory
   })
@@ -206,14 +207,14 @@ export default function TrainerPage() {
             <input
               type="text"
               placeholder="환자 검색..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={patientSearchQuery}
+              onChange={(e) => setPatientSearchQuery(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
 
             <div className="space-y-2">
               {patients
-                .filter(p => p.name.includes(searchQuery) || p.email.includes(searchQuery))
+                .filter(p => p.name.includes(patientSearchQuery) || p.email.includes(patientSearchQuery))
                 .map((patient) => (
                   <button
                     key={patient.id}
@@ -305,42 +306,53 @@ export default function TrainerPage() {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">📚 운동 라이브러리</h2>
 
-          {/* 카테고리 필터 */}
-          <div className="flex gap-2 overflow-x-auto pb-3 mb-4">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setCategoryFilter(cat)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
-                  categoryFilter === cat
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-600'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+          {/* 카테고리 필터 + 검색 */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex gap-2 overflow-x-auto pb-1 flex-shrink-0">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
+                    categoryFilter === cat
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              placeholder="운동 검색..."
+              value={exerciseSearchQuery}
+              onChange={(e) => setExerciseSearchQuery(e.target.value)}
+              className="flex-1 min-w-[120px] px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
 
-          <div className="space-y-2">
+          {/* 4열 그리드 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {filteredExercises.map((exercise) => {
               const alreadyPrescribed = currentPrescriptions.some(p => p.exercise_id === exercise.id)
 
               return (
                 <div
                   key={exercise.id}
-                  className={`border rounded-lg p-3 flex items-center justify-between ${
+                  className={`border rounded-lg p-3 flex flex-col justify-between ${
                     alreadyPrescribed ? 'bg-gray-50 opacity-60' : ''
                   }`}
                 >
-                  <div>
+                  <div className="mb-2">
                     <p className="font-semibold text-gray-900 text-sm">{exercise.name}</p>
-                    <p className="text-xs text-gray-500">{exercise.category} · {exercise.level} · {exercise.duration}</p>
+                    <p className="text-[11px] text-gray-500">{exercise.category}</p>
+                    <p className="text-[11px] text-gray-400">{exercise.level} · {exercise.duration}</p>
                   </div>
                   <button
                     onClick={() => handleAddExercise(exercise)}
                     disabled={alreadyPrescribed}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                    className={`w-full py-1.5 rounded-lg text-xs font-medium transition ${
                       alreadyPrescribed
                         ? 'bg-gray-200 text-gray-400'
                         : 'bg-blue-500 text-white hover:bg-blue-600'
@@ -352,6 +364,10 @@ export default function TrainerPage() {
               )
             })}
           </div>
+
+          {filteredExercises.length === 0 && (
+            <p className="text-center text-gray-400 py-6 text-sm">검색 결과가 없습니다</p>
+          )}
         </div>
       </main>
 
