@@ -18,7 +18,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이메일과 비밀번호를 입력해주세요.' }, { status: 400 })
     }
 
-    // Find user
     const { data: user, error: dbError } = await supabase
       .from('users')
       .select('*')
@@ -29,21 +28,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
     }
 
-    // Check password
     if (user.password_hash !== hashPassword(password)) {
       return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
     }
 
-    // Update last login
     await supabase
       .from('users')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', user.id)
 
-    // Decide redirect based on onboarding status
     const redirect = user.onboarding_completed === true ? '/dashboard' : '/onboarding'
 
-    // Create session
     const sessionData = {
       userId: user.id,
       email: user.email,
@@ -61,6 +56,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: 60 * 60 * 24 * 7
     })
 
@@ -68,6 +64,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: 60 * 60 * 24 * 7
     })
 
