@@ -158,19 +158,43 @@ export default function DashboardPage() {
 
   const fetchTrainerAndUnread = async (userId: string) => {
     try {
-      // 트레이너 찾기 (처방을 내린 트레이너 또는 role=trainer인 유저)
+      let tId: string | null = null
+
+      // 1. 처방을 내린 트레이너
       const { data: rxData } = await supabase
         .from('prescriptions')
         .select('trainer_id')
         .eq('patient_id', userId)
         .limit(1)
 
-      let tId: string | null = null
-
       if (rxData && rxData.length > 0) {
         tId = rxData[0].trainer_id
-      } else {
-        // 처방이 없으면 trainer role 유저 찾기
+      }
+
+      // 2. 메시지를 보낸 트레이너
+      if (!tId) {
+        const { data: msgData } = await supabase
+          .from('messages')
+          .select('sender_id')
+          .eq('receiver_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (msgData && msgData.length > 0) {
+          // sender가 trainer인지 확인
+          const { data: senderData } = await supabase
+            .from('users')
+            .select('id, role')
+            .eq('id', msgData[0].sender_id)
+            .eq('role', 'trainer')
+            .single()
+
+          if (senderData) tId = senderData.id
+        }
+      }
+
+      // 3. role=trainer인 유저
+      if (!tId) {
         const { data: trainerData } = await supabase
           .from('users')
           .select('id')
@@ -185,7 +209,6 @@ export default function DashboardPage() {
       if (tId) {
         setTrainerId(tId)
 
-        // 읽지 않은 메시지 수
         const { count } = await supabase
           .from('messages')
           .select('*', { count: 'exact', head: true })
