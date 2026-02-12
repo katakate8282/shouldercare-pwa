@@ -662,6 +662,20 @@ export default function TrainerPage() {
           </div>
         ) : patientDetail ? (
           <main className="max-w-7xl mx-auto px-4 py-4 space-y-4">
+            {/* 확인 완료 → 목록으로 버튼 (알림 있는 환자일 때 표시) */}
+            {patientAlertStatus[selectedPatient.id] && (
+              <button
+                onClick={async () => {
+                  await dismissAlert(selectedPatient.id)
+                  setSelectedPatient(null)
+                  setViewMode('list')
+                }}
+                className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold text-sm hover:bg-green-600 transition flex items-center justify-center gap-2"
+              >
+                ✅ 확인 완료 → 목록으로 돌아가기
+              </button>
+            )}
+
             {/* 기본 정보 */}
             <div className="bg-white rounded-lg shadow-sm p-4">
               <h3 className="font-semibold text-gray-900 mb-3">📊 재활 현황</h3>
