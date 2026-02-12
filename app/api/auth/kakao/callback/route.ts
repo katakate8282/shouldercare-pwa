@@ -10,6 +10,9 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
 
+  console.log('Kakao Callback - Code:', code)
+  console.log('Kakao Callback - Error:', error)
+
   if (error) {
     return NextResponse.redirect(new URL(`/login?error=${error}`, request.url))
   }
@@ -19,19 +22,32 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // 현재 요청의 호스트를 기반으로 Redirect URI 생성
+    const host = request.headers.get('host')
+    const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
+    const redirectUri = `${protocol}://${host}/api/auth/kakao/callback`
+
+    console.log('Token exchange - Redirect URI:', redirectUri)
+
     const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID!,
-        redirect_uri: process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI!,
+        redirect_uri: redirectUri,
         code,
       }),
     })
 
-    if (!tokenResponse.ok) throw new Error('토큰 교환 실패')
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.json()
+      console.error('Token exchange failed:', errorData)
+      throw new Error('토큰 교환 실패')
+    }
+    
     const tokenData = await tokenResponse.json()
+    console.log('Token received:', tokenData.access_token ? 'Success' : 'Failed')
     
     const userResponse = await fetch('https://kapi.kakao.com/v2/user/me', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
@@ -39,6 +55,7 @@ export async function GET(request: NextRequest) {
 
     if (!userResponse.ok) throw new Error('사용자 정보 조회 실패')
     const kakaoUser = await userResponse.json()
+    console.log('Kakao User ID:', kakaoUser.id)
 
     const { data: existingUser } = await supabase
       .from('users')
@@ -83,6 +100,8 @@ export async function GET(request: NextRequest) {
       maxAge: 7 * 24 * 60 * 60,
       path: '/',
     })
+    
+    console.log('Login successful, redirecting to dashboard')
     return response
   } catch (error) {
     console.error('카카오 로그인 에러:', error)
