@@ -3,16 +3,21 @@
 import { useRouter, useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { mockExercises } from "@/lib/data/exercises"
-import { useAuthStore } from '@/lib/stores/authStore'
 import { supabase } from '@/lib/supabase/client'
+
+interface User {
+  id: string
+  name: string
+  email: string
+}
 
 export default function WorkoutPage() {
   const router = useRouter()
   const params = useParams()
-  const { user } = useAuthStore()
   const exerciseId = params.id as string
   const exercise = mockExercises.find((e) => e.id === exerciseId)
 
+  const [user, setUser] = useState<User | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -21,6 +26,22 @@ export default function WorkoutPage() {
   const [isResting, setIsResting] = useState(false)
   const [restSeconds, setRestSeconds] = useState(30)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => {
+        if (!res.ok) throw new Error('Not authenticated')
+        return res.json()
+      })
+      .then(data => {
+        if (data.user) {
+          setUser(data.user)
+        } else {
+          router.push('/login')
+        }
+      })
+      .catch(() => router.push('/login'))
+  }, [router])
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
@@ -71,13 +92,19 @@ export default function WorkoutPage() {
   }
 
   const handleFinish = async () => {
+    if (!user) {
+      alert('로그인이 필요합니다.')
+      router.push('/login')
+      return
+    }
+
     setIsSaving(true)
-    
+
     try {
       const { data, error } = await supabase
         .from('exercise_logs')
         .insert({
-          user_id: user?.id,
+          user_id: user.id,
           exercise_id: exerciseId,
           sets_completed: currentSet,
           reps_completed: currentRep,
@@ -94,7 +121,7 @@ export default function WorkoutPage() {
       }
 
       const exerciseLog = {
-        userId: user?.id,
+        userId: user.id,
         exerciseId,
         exerciseName: exercise.name,
         setsCompleted: currentSet,
