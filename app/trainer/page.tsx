@@ -653,12 +653,20 @@ export default function TrainerPage() {
                   <p className="text-xs text-gray-500">환자 상세</p>
                 </div>
               </div>
-              <button
-                onClick={handleGoToPrescribe}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition"
-              >
-                운동 처방
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => router.push(`/messages/${selectedPatient.id}`)}
+                  className="bg-green-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-600 transition"
+                >
+                  💬 메시지
+                </button>
+                <button
+                  onClick={handleGoToPrescribe}
+                  className="bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition"
+                >
+                  운동 처방
               </button>
+              </div>
             </div>
           </div>
         </header>
