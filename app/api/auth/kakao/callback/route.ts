@@ -61,7 +61,6 @@ export async function GET(request: NextRequest) {
     let onboardingDone = false
 
     if (existingUser) {
-      // Existing user - update name and timestamp
       userId = existingUser.id
       onboardingDone = existingUser.onboarding_completed === true
 
@@ -73,7 +72,6 @@ export async function GET(request: NextRequest) {
         })
         .eq('id', existingUser.id)
     } else {
-      // New user - insert
       const { data: newUser, error: insertError } = await supabase
         .from('users')
         .insert({
@@ -95,10 +93,8 @@ export async function GET(request: NextRequest) {
       onboardingDone = false
     }
 
-    // Decide redirect
     const redirectPath = onboardingDone ? '/dashboard' : '/onboarding'
 
-    // Create session cookie
     const sessionData = {
       userId,
       email,
@@ -112,6 +108,7 @@ export async function GET(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: 60 * 60 * 24 * 7
     })
 
@@ -119,6 +116,7 @@ export async function GET(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: 60 * 60 * 24 * 7
     })
 
