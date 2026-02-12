@@ -302,7 +302,7 @@ export default function MessagePage() {
         ) : (
           <div className="space-y-1">
             {messages.map((msg, idx) => {
-              const isMine = msg.sender_id === user.id
+              const isMine = String(msg.sender_id) === String(user.id)
               const showDate = shouldShowDateLabel(idx)
 
               return (
@@ -317,14 +317,20 @@ export default function MessagePage() {
 
                   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-1`}>
                     <div className={`flex items-end gap-1.5 max-w-[75%] ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
-                      <div
-                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
-                          isMine
-                            ? 'bg-blue-500 text-white rounded-br-sm'
-                            : 'bg-white text-gray-900 rounded-bl-sm shadow-sm'
-                        }`}
-                      >
-                        {msg.content}
+                      <div>
+                        {/* 상대방 메시지일 때 이름 표시 */}
+                        {!isMine && (
+                          <p className="text-xs text-gray-500 mb-1 ml-1">{otherUser?.name || '상대방'}</p>
+                        )}
+                        <div
+                          className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+                            isMine
+                              ? 'bg-blue-500 text-white rounded-br-sm'
+                              : 'bg-gray-200 text-gray-900 rounded-bl-sm'
+                          }`}
+                        >
+                          {msg.content}
+                        </div>
                       </div>
                       <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
                         {isMine && msg.read_at && (
