@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase/client'
 
 interface User {
   id: string
@@ -15,9 +16,9 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [todayPain, setTodayPain] = useState<number | null>(null)
+  const [weekExercises, setWeekExercises] = useState(0)
 
   useEffect(() => {
-    // 쿠키 기반으로 유저 정보 가져오기
     fetch('/api/auth/me')
       .then(res => {
         if (!res.ok) throw new Error('Not authenticated')
@@ -26,27 +27,50 @@ export default function DashboardPage() {
       .then(data => {
         if (data.user) {
           setUser(data.user)
+          fetchStats(data.user.id)
         } else {
           router.push('/login')
         }
       })
-      .catch(() => {
-        router.push('/login')
-      })
+      .catch(() => router.push('/login'))
       .finally(() => setLoading(false))
-
-    // Load today's pain log
-    if (typeof window !== 'undefined') {
-      const painLogs = JSON.parse(localStorage.getItem('painLogs') || '[]')
-      const today = new Date().toDateString()
-      const todayLog = painLogs.find((log: any) =>
-        new Date(log.loggedAt).toDateString() === today
-      )
-      if (todayLog) {
-        setTodayPain(todayLog.painLevel)
-      }
-    }
   }, [router])
+
+  const fetchStats = async (userId: string) => {
+    try {
+      // 이번 주 운동 기록 가져오기
+      const weekAgo = new Date()
+      weekAgo.setDate(weekAgo.getDate() - 7)
+
+      const { data: exerciseData, error: exerciseError } = await supabase
+        .from('exercise_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('completed_at', weekAgo.toISOString())
+
+      if (!exerciseError && exerciseData) {
+        setWeekExercises(exerciseData.length)
+      }
+
+      // 오늘 통증 기록 가져오기
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const { data: painData, error: painError } = await supabase
+        .from('pain_logs')
+        .select('pain_level')
+        .eq('user_id', userId)
+        .gte('logged_at', today.toISOString())
+        .order('logged_at', { ascending: false })
+        .limit(1)
+
+      if (!painError && painData && painData.length > 0) {
+        setTodayPain(painData[0].pain_level)
+      }
+    } catch (error) {
+      console.error('Stats fetch error:', error)
+    }
+  }
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -101,8 +125,8 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-white rounded-lg p-2.5 shadow-sm">
             <p className="text-xs text-gray-600 mb-0.5">이번 주 운동</p>
-            <p className="text-lg font-bold text-gray-900">0/28</p>
-            <p className="text-xs text-gray-500">0% 완료</p>
+            <p className="text-lg font-bold text-gray-900">{weekExercises}회</p>
+            <p className="text-xs text-gray-500">최근 7일</p>
           </div>
           <div className="bg-white rounded-lg p-2.5 shadow-sm">
             <p className="text-xs text-gray-600 mb-0.5">오늘 통증</p>
