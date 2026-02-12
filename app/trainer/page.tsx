@@ -97,6 +97,24 @@ const EXERCISE_LIBRARY = [
   { id: 'ex-013', name: '견갑골 안정화', category: '견갑골', level: '초급', duration: '2:30' },
 ]
 
+// 한국 시간 기준 오늘 시작 (UTC)
+function getKSTTodayStartUTC(): string {
+  const now = new Date()
+  const kstOffset = 9 * 60 * 60 * 1000
+  const kstNow = new Date(now.getTime() + kstOffset)
+  const kstDateStr = kstNow.toISOString().split('T')[0]
+  // KST 자정을 UTC로 변환 (KST 00:00 = UTC 전날 15:00)
+  return new Date(kstDateStr + 'T00:00:00+09:00').toISOString()
+}
+
+// 한국 시간 기준 오늘 날짜 문자열 (YYYY-MM-DD)
+function getKSTDateString(): string {
+  const now = new Date()
+  const kstOffset = 9 * 60 * 60 * 1000
+  const kstNow = new Date(now.getTime() + kstOffset)
+  return kstNow.toISOString().split('T')[0]
+}
+
 export default function TrainerPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -131,7 +149,6 @@ export default function TrainerPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [patientLastActivity, setPatientLastActivity] = useState<Record<string, string>>({})
   const [patientAlertStatus, setPatientAlertStatus] = useState<Record<string, boolean>>({})
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
 
   const [newNote, setNewNote] = useState('')
   const [newNoteIsPublic, setNewNoteIsPublic] = useState(false)
@@ -163,25 +180,25 @@ export default function TrainerPage() {
 
     if (!error && data) {
       setPatients(data)
-      fetchDashboardStats(data, trainerId)
+      fetchDashboardStats(data)
     }
   }
 
-  const fetchDashboardStats = async (patientList: Patient[], trainerId?: string) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayISO = today.toISOString()
-    const todayDate = today.toISOString().split('T')[0]
+  const fetchDashboardStats = async (patientList: Patient[]) => {
+    const kstTodayUTC = getKSTTodayStartUTC()
+    const kstDateStr = getKSTDateString()
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
+    // 오늘 운동 완료한 고유 유저 수 (KST 기준)
     const { data: todayLogs } = await supabase
       .from('exercise_logs')
       .select('user_id')
-      .gte('completed_at', todayISO)
+      .gte('completed_at', kstTodayUTC)
 
     const todayUniqueUsers = new Set(todayLogs?.map(l => l.user_id) || [])
 
+    // 최근 7일 활동 유저
     const { data: weekLogs } = await supabase
       .from('exercise_logs')
       .select('user_id, completed_at')
@@ -197,29 +214,38 @@ export default function TrainerPage() {
     })
     setPatientLastActivity(lastActivityMap)
 
+    // 오늘 통증 8 이상 (KST 기준)
     const { data: painLogs } = await supabase
       .from('pain_logs')
       .select('user_id, pain_level, logged_at')
-      .gte('logged_at', todayISO)
+      .not('user_id', 'is', null)
+      .gte('logged_at', kstTodayUTC)
       .gte('pain_level', 8)
       .order('logged_at', { ascending: false })
 
-    // 이미 해제된 알림 조회
+    // 이미 해제된 알림 조회 (KST 날짜 기준)
     const { data: dismissals } = await supabase
       .from('alert_dismissals')
       .select('patient_id')
       .eq('alert_type', 'pain_spike')
-      .eq('alert_date', todayDate)
+      .eq('alert_date', kstDateStr)
 
-    const dismissedSet = new Set((dismissals || []).map(d => d.patient_id))
-    setDismissedAlerts(dismissedSet)
+    const dismissedPatientIds = new Set((dismissals || []).map(d => d.patient_id))
 
+    // 환자별 가장 높은 통증만 표시 (중복 제거)
     const alertMap: Record<string, boolean> = {}
+    const seenPatients = new Set<string>()
     const painAlerts = (painLogs || [])
-      .filter(log => !dismissedSet.has(log.user_id))
+      .filter(log => {
+        if (!log.user_id) return false
+        if (dismissedPatientIds.has(log.user_id)) return false
+        if (seenPatients.has(log.user_id)) return false
+        seenPatients.add(log.user_id)
+        return true
+      })
       .map(log => {
         const patient = patientList.find(p => p.id === log.user_id)
-        alertMap[log.user_id] = true
+        if (patient) alertMap[log.user_id] = true
         return {
           patientId: log.user_id,
           patientName: patient?.name || '알 수 없음',
@@ -227,6 +253,8 @@ export default function TrainerPage() {
           loggedAt: log.logged_at,
         }
       })
+      .filter(alert => alert.patientName !== '알 수 없음')
+
     setPatientAlertStatus(alertMap)
 
     setDashboardStats({
@@ -239,16 +267,16 @@ export default function TrainerPage() {
 
   const dismissAlert = async (patientId: string) => {
     if (!user) return
+    const kstDateStr = getKSTDateString()
 
     await supabase.from('alert_dismissals').upsert({
       patient_id: patientId,
       trainer_id: user.id,
       alert_type: 'pain_spike',
-      alert_date: new Date().toISOString().split('T')[0],
+      alert_date: kstDateStr,
     }, { onConflict: 'patient_id,alert_type,alert_date' })
 
     // UI에서 즉시 제거
-    setDismissedAlerts(prev => new Set([...prev, patientId]))
     setPatientAlertStatus(prev => {
       const next = { ...prev }
       delete next[patientId]
@@ -374,7 +402,6 @@ export default function TrainerPage() {
     if (!error) {
       setShowAddModal(false)
       fetchPrescriptions(selectedPatient.id)
-      // 처방 시 해당 환자 알림 자동 해제
       await dismissAlert(selectedPatient.id)
     } else {
       console.error('Prescription error:', error)
@@ -408,7 +435,6 @@ export default function TrainerPage() {
       setNewNote('')
       setNewNoteIsPublic(false)
       fetchPatientDetail(selectedPatient)
-      // 메모 저장 시 해당 환자 알림 자동 해제
       await dismissAlert(selectedPatient.id)
     }
     setSavingNote(false)
@@ -842,7 +868,6 @@ export default function TrainerPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* 현재 처방 목록 */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900">📋 현재 처방 운동</h2>
@@ -876,7 +901,6 @@ export default function TrainerPage() {
           )}
         </div>
 
-        {/* 운동 라이브러리 */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">📚 운동 라이브러리</h2>
 
@@ -943,7 +967,6 @@ export default function TrainerPage() {
         </div>
       </main>
 
-      {/* 처방 설정 모달 */}
       {showAddModal && selectedExercise && (
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
           <div className="bg-white rounded-t-2xl w-full max-w-md p-6 space-y-4 max-h-[80vh] overflow-y-auto">
