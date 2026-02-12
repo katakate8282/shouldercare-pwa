@@ -44,43 +44,36 @@ export async function GET(request: NextRequest) {
 
     const kakaoUser = await userResponse.json()
 
-    // Check if user already exists
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
     const email = kakaoUser.kakao_account?.email || `kakao_${kakaoUser.id}@shouldercare.app`
 
+    // Check if user already exists
     const { data: existingUser } = await supabase
       .from('users')
       .select('id, onboarding_completed')
       .eq('email', email)
       .single()
 
-    let user
-    let isNewUser = false
+    let userId: string
+    let onboardingDone = false
 
     if (existingUser) {
-      // Existing user - update
-      const { data: updatedUser, error: updateError } = await supabase
+      // Existing user - update name and timestamp
+      userId = existingUser.id
+      onboardingDone = existingUser.onboarding_completed === true
+
+      await supabase
         .from('users')
         .update({
           name: kakaoUser.kakao_account?.profile?.nickname || '사용자',
           updated_at: new Date().toISOString()
         })
         .eq('id', existingUser.id)
-        .select()
-        .single()
-
-      if (updateError) {
-        console.error('Database error:', updateError)
-        return NextResponse.redirect(new URL('/login?error=database_error', request.url))
-      }
-
-      user = updatedUser
     } else {
       // New user - insert
-      isNewUser = true
       const { data: newUser, error: insertError } = await supabase
         .from('users')
         .insert({
@@ -90,24 +83,25 @@ export async function GET(request: NextRequest) {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
-        .select()
+        .select('id')
         .single()
 
-      if (insertError) {
+      if (insertError || !newUser) {
         console.error('Database error:', insertError)
         return NextResponse.redirect(new URL('/login?error=database_error', request.url))
       }
 
-      user = newUser
+      userId = newUser.id
+      onboardingDone = false
     }
 
-    // Decide redirect: new user or onboarding not completed → onboarding
-    const redirectPath = (isNewUser || !user.onboarding_completed) ? '/onboarding' : '/dashboard'
+    // Decide redirect
+    const redirectPath = onboardingDone ? '/dashboard' : '/onboarding'
 
     // Create session cookie
     const sessionData = {
-      userId: user.id,
-      email: user.email,
+      userId,
+      email,
       exp: Date.now() + 7 * 24 * 60 * 60 * 1000
     }
     const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64')
@@ -121,7 +115,7 @@ export async function GET(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7
     })
 
-    response.cookies.set('user_id', user.id, {
+    response.cookies.set('user_id', userId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
