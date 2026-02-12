@@ -206,9 +206,52 @@ export default function TrainerPage() {
   }, [user])
 
   const fetchPatients = async (trainerId?: string) => {
+    // 배정된 환자 ID 조회
+    let patientIds: string[] = []
+
+    if (trainerId) {
+      const { data: assignData } = await supabase
+        .from('patient_assignments')
+        .select('patient_id')
+        .eq('trainer_id', trainerId)
+
+      if (assignData && assignData.length > 0) {
+        patientIds = assignData.map(a => a.patient_id)
+      }
+    }
+
+    // 배정된 환자가 없으면 빈 배열
+    if (patientIds.length === 0) {
+      // 배정 테이블에 데이터가 없으면 기존처럼 전체 환자 표시 (하위호환)
+      const { count } = await supabase
+        .from('patient_assignments')
+        .select('*', { count: 'exact', head: true })
+
+      if (count && count > 0) {
+        // 배정 시스템이 사용 중인데 이 트레이너에겐 배정된 환자가 없음
+        setPatients([])
+        fetchDashboardStats([])
+        return
+      }
+
+      // 배정 시스템 미사용 → 전체 환자 표시
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, email, onboarding_completed, rehab_goal, pain_level_initial, created_at, updated_at')
+        .not('role', 'in', '("trainer","admin")')
+        .order('name')
+
+      if (!error && data) {
+        setPatients(data)
+        fetchDashboardStats(data)
+      }
+      return
+    }
+
     const { data, error } = await supabase
       .from('users')
       .select('id, name, email, onboarding_completed, rehab_goal, pain_level_initial, created_at, updated_at')
+      .in('id', patientIds)
       .order('name')
 
     if (!error && data) {
