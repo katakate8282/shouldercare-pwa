@@ -223,22 +223,29 @@ export default function TrainerPage() {
       .gte('pain_level', 8)
       .order('logged_at', { ascending: false })
 
-    // 이미 해제된 알림 조회 (KST 날짜 기준)
+    // 이미 해제된 알림 조회 (KST 날짜 기준) — dismissed_at 포함
     const { data: dismissals } = await supabase
       .from('alert_dismissals')
-      .select('patient_id')
+      .select('patient_id, dismissed_at')
       .eq('alert_type', 'pain_spike')
       .eq('alert_date', kstDateStr)
 
-    const dismissedPatientIds = new Set((dismissals || []).map(d => d.patient_id))
+    const dismissedMap: Record<string, string> = {}
+    ;(dismissals || []).forEach(d => {
+      dismissedMap[d.patient_id] = d.dismissed_at
+    })
 
     // 환자별 가장 높은 통증만 표시 (중복 제거)
+    // 해제 시점 이후에 새로 기록된 통증이 있으면 알림 다시 표시
     const alertMap: Record<string, boolean> = {}
     const seenPatients = new Set<string>()
     const painAlerts = (painLogs || [])
       .filter(log => {
         if (!log.user_id) return false
-        if (dismissedPatientIds.has(log.user_id)) return false
+        // 해제된 적이 있으면, 해제 시점 이후 기록인지 확인
+        if (dismissedMap[log.user_id]) {
+          if (new Date(log.logged_at) <= new Date(dismissedMap[log.user_id])) return false
+        }
         if (seenPatients.has(log.user_id)) return false
         seenPatients.add(log.user_id)
         return true
