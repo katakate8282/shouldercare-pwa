@@ -11,6 +11,23 @@ interface User {
   email: string
 }
 
+function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 2500)
+    return () => clearTimeout(timer)
+  }, [onClose])
+
+  return (
+    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-bounce">
+      <div className={`px-6 py-3 rounded-xl shadow-lg text-white font-semibold text-sm ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+      }`}>
+        {message}
+      </div>
+    </div>
+  )
+}
+
 export default function WorkoutPage() {
   const router = useRouter()
   const params = useParams()
@@ -26,6 +43,11 @@ export default function WorkoutPage() {
   const [isResting, setIsResting] = useState(false)
   const [restSeconds, setRestSeconds] = useState(30)
   const [isSaving, setIsSaving] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type })
+  }
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -100,7 +122,7 @@ export default function WorkoutPage() {
 
   const handleFinish = async () => {
     if (!user) {
-      alert('로그인이 필요합니다.')
+      showToast('로그인이 필요합니다.', 'error')
       router.push('/login')
       return
     }
@@ -123,16 +145,16 @@ export default function WorkoutPage() {
 
       if (error) {
         console.error('Supabase error:', error)
-        alert('저장에 실패했습니다: ' + error.message)
+        showToast('저장에 실패했습니다.', 'error')
         setIsSaving(false)
         return
       }
 
-      alert('운동 완료! 🎉')
-      router.push('/dashboard')
+      showToast('운동 완료! 🎉', 'success')
+      setTimeout(() => router.push('/dashboard'), 1500)
     } catch (error) {
       console.error('Save error:', error)
-      alert('저장 중 오류가 발생했습니다.')
+      showToast('저장 중 오류가 발생했습니다.', 'error')
       setIsSaving(false)
     }
   }
@@ -145,6 +167,8 @@ export default function WorkoutPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-24">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
