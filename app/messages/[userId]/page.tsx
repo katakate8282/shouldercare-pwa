@@ -3,6 +3,7 @@
 import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { requestNotificationPermission, onForegroundMessage } from '@/lib/firebase'
 
 interface User {
   id: string
@@ -34,7 +35,6 @@ export default function MessagePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // 스크롤을 맨 아래로
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -51,6 +51,7 @@ export default function MessagePage() {
           fetchOtherUser()
           fetchMessages(data.user.id)
           markAsRead(data.user.id)
+          registerFCMToken()
         } else {
           router.push('/login')
         }
@@ -58,6 +59,39 @@ export default function MessagePage() {
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false))
   }, [router, otherUserId])
+
+  // FCM 토큰 등록
+  const registerFCMToken = async () => {
+    try {
+      const token = await requestNotificationPermission()
+      if (token) {
+        await fetch('/api/fcm-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fcmToken: token }),
+        })
+      }
+    } catch (error) {
+      console.error('FCM registration error:', error)
+    }
+  }
+
+  // 포그라운드 메시지 수신 시 토스트 표시
+  useEffect(() => {
+    onForegroundMessage((payload) => {
+      // 현재 대화 상대의 메시지는 이미 Realtime으로 처리되므로 무시
+      // 다른 사람의 메시지일 때만 알림
+      if (payload.data?.senderId !== otherUserId) {
+        // 간단한 토스트 알림
+        if (Notification.permission === 'granted') {
+          new Notification(payload.notification?.title || '어깨케어', {
+            body: payload.notification?.body || '새 메시지',
+            icon: '/icons/icon-192x192.png',
+          })
+        }
+      }
+    })
+  }, [otherUserId])
 
   // Supabase Realtime 구독
   useEffect(() => {
@@ -74,17 +108,14 @@ export default function MessagePage() {
         },
         (payload) => {
           const msg = payload.new as Message
-          // 이 대화방에 해당하는 메시지만 추가
           if (
             (msg.sender_id === user.id && msg.receiver_id === otherUserId) ||
             (msg.sender_id === otherUserId && msg.receiver_id === user.id)
           ) {
             setMessages(prev => {
-              // 중복 방지
               if (prev.find(m => m.id === msg.id)) return prev
               return [...prev, msg]
             })
-            // 상대방이 보낸 메시지는 읽음 처리
             if (msg.sender_id === otherUserId) {
               supabase
                 .from('messages')
@@ -102,7 +133,6 @@ export default function MessagePage() {
     }
   }, [user, otherUserId])
 
-  // 새 메시지가 추가되면 스크롤
   useEffect(() => {
     scrollToBottom()
   }, [messages])
@@ -138,6 +168,37 @@ export default function MessagePage() {
       .is('read_at', null)
   }
 
+  const sendPushNotification = async (receiverId: string, content: string) => {
+    try {
+      // 상대방의 FCM 토큰 조회
+      const { data: tokens } = await supabase
+        .from('fcm_tokens')
+        .select('token')
+        .eq('user_id', receiverId)
+
+      if (!tokens || tokens.length === 0) return
+
+      // 각 토큰에 푸시 발송
+      for (const { token } of tokens) {
+        await fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            title: `${user?.name || '새 메시지'}`,
+            body: content.length > 50 ? content.slice(0, 50) + '...' : content,
+            data: {
+              url: `/messages/${user?.id}`,
+              senderId: user?.id,
+            },
+          }),
+        })
+      }
+    } catch (error) {
+      console.error('Push notification error:', error)
+    }
+  }
+
   const handleSend = async () => {
     if (!user || !newMessage.trim() || sending) return
     setSending(true)
@@ -153,7 +214,10 @@ export default function MessagePage() {
 
     if (error) {
       console.error('Send error:', error)
-      setNewMessage(content) // 실패 시 복원
+      setNewMessage(content)
+    } else {
+      // 푸시 알림 발송
+      sendPushNotification(otherUserId, content)
     }
 
     setSending(false)
@@ -183,7 +247,6 @@ export default function MessagePage() {
     return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
   }
 
-  // 날짜 구분선 표시 여부
   const shouldShowDateLabel = (idx: number) => {
     if (idx === 0) return true
     const prev = new Date(messages[idx - 1].created_at).toDateString()
@@ -205,7 +268,6 @@ export default function MessagePage() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* 헤더 */}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
           <button
@@ -231,7 +293,6 @@ export default function MessagePage() {
         </div>
       </header>
 
-      {/* 메시지 영역 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full">
         {messages.length === 0 ? (
           <div className="text-center text-gray-400 py-20">
@@ -246,7 +307,6 @@ export default function MessagePage() {
 
               return (
                 <div key={msg.id}>
-                  {/* 날짜 구분선 */}
                   {showDate && (
                     <div className="flex items-center justify-center my-4">
                       <span className="bg-gray-200 text-gray-500 text-xs px-3 py-1 rounded-full">
@@ -255,7 +315,6 @@ export default function MessagePage() {
                     </div>
                   )}
 
-                  {/* 말풍선 */}
                   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-1`}>
                     <div className={`flex items-end gap-1.5 max-w-[75%] ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
                       <div
@@ -285,7 +344,6 @@ export default function MessagePage() {
         )}
       </div>
 
-      {/* 입력 영역 */}
       <div className="bg-white border-t sticky bottom-0">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-2">
           <input
