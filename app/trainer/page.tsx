@@ -495,6 +495,42 @@ export default function TrainerPage() {
     )
   }
 
+  // 읽지 않은 전체 메시지 수
+  const [totalUnread, setTotalUnread] = useState(0)
+
+  useEffect(() => {
+    if (!user) return
+    fetchTotalUnread()
+
+    const channel = supabase
+      .channel(`trainer-unread-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        () => {
+          setTotalUnread(prev => prev + 1)
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user])
+
+  const fetchTotalUnread = async () => {
+    if (!user) return
+    const { count } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('receiver_id', user.id)
+      .is('read_at', null)
+    setTotalUnread(count || 0)
+  }
+
   if (!user) return null
 
   // ===== 환자 목록 (메인 대시보드) =====
@@ -505,7 +541,20 @@ export default function TrainerPage() {
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-bold text-gray-900">트레이너 대시보드</h1>
-              <button onClick={() => router.push('/dashboard')} className="text-sm text-blue-500">홈으로</button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.push('/messages')}
+                  className="relative text-gray-600 hover:text-gray-900"
+                >
+                  <span className="text-2xl">💬</span>
+                  {totalUnread > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                      {totalUnread > 9 ? '9+' : totalUnread}
+                    </span>
+                  )}
+                </button>
+                <button onClick={() => router.push('/dashboard')} className="text-sm text-blue-500">홈으로</button>
+              </div>
             </div>
           </div>
         </header>
