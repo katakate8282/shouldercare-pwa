@@ -173,7 +173,7 @@ export default function TrainerPage() {
   const categories = ['전체', ...Array.from(new Set(EXERCISE_LIBRARY.map(e => e.category)))]
 
   const filteredExercises = EXERCISE_LIBRARY.filter(e => {
-    const matchSearch = exerciseSearchQuery === '' || e.name.includes(exerciseSearchQuery)
+    const matchSearch = exerciseSearchQuery === '' || e.name.replace(/\s/g, '').includes(exerciseSearchQuery.replace(/\s/g, ''))
     const matchCategory = categoryFilter === '전체' || e.category === categoryFilter
     return matchSearch && matchCategory
   })
