@@ -9,6 +9,18 @@ interface User {
   name: string
   email: string
   subscription_type?: string
+  role?: string
+}
+
+interface Prescription {
+  id: string
+  exercise_id: string
+  exercise_name: string
+  sets: number
+  reps: number
+  frequency_per_week: number
+  resistance: string
+  notes: string
 }
 
 export default function DashboardPage() {
@@ -17,6 +29,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [todayPain, setTodayPain] = useState<number | null>(null)
   const [weekExercises, setWeekExercises] = useState(0)
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -28,6 +41,7 @@ export default function DashboardPage() {
         if (data.user) {
           setUser(data.user)
           fetchStats(data.user.id)
+          fetchPrescriptions(data.user.id)
         } else {
           router.push('/login')
         }
@@ -38,7 +52,6 @@ export default function DashboardPage() {
 
   const fetchStats = async (userId: string) => {
     try {
-      // 이번 주 운동 기록 가져오기
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
 
@@ -52,7 +65,6 @@ export default function DashboardPage() {
         setWeekExercises(exerciseData.length)
       }
 
-      // 오늘 통증 기록 가져오기
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
@@ -69,6 +81,23 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Stats fetch error:', error)
+    }
+  }
+
+  const fetchPrescriptions = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('prescriptions')
+        .select('*')
+        .eq('patient_id', userId)
+        .eq('status', 'active')
+        .order('prescribed_at', { ascending: true })
+
+      if (!error && data) {
+        setPrescriptions(data)
+      }
+    } catch (error) {
+      console.error('Prescriptions fetch error:', error)
     }
   }
 
@@ -139,16 +168,45 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Today's Exercises */}
+        {/* 처방된 운동 */}
         <div className="bg-white rounded-lg shadow-sm">
-          <div className="p-2.5 border-b">
+          <div className="p-2.5 border-b flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">오늘의 운동</h3>
+            {prescriptions.length > 0 && (
+              <span className="text-xs text-blue-500">{prescriptions.length}개 처방</span>
+            )}
           </div>
           <div className="p-3">
-            <div className="text-center py-4 text-gray-500">
-              <span className="text-2xl mb-2 block">📝</span>
-              <p className="text-xs">아직 처방된 운동이 없습니다</p>
-            </div>
+            {prescriptions.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                <span className="text-2xl mb-2 block">📝</span>
+                <p className="text-xs">아직 처방된 운동이 없습니다</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {prescriptions.map((rx) => (
+                  <button
+                    key={rx.id}
+                    onClick={() => router.push(`/exercises/${rx.exercise_id}/workout`)}
+                    className="w-full text-left px-4 py-3 rounded-lg border hover:border-blue-400 hover:bg-blue-50 transition"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">{rx.exercise_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {rx.sets}세트 × {rx.reps}회
+                          {rx.resistance && ` · ${rx.resistance}`}
+                        </p>
+                        {rx.notes && (
+                          <p className="text-xs text-blue-500 mt-0.5">💬 {rx.notes}</p>
+                        )}
+                      </div>
+                      <span className="text-gray-400 text-lg">▶</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
