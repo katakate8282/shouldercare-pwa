@@ -68,7 +68,14 @@ export default function WorkoutPage() {
   }, [isRunning, isPaused, isResting])
 
   if (!exercise) {
-    return <div>운동을 찾을 수 없습니다</div>
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 mb-4">운동을 찾을 수 없습니다</p>
+        <button onClick={() => router.push('/dashboard')} className="text-blue-500 font-medium">
+          대시보드로 돌아가기
+        </button>
+      </div>
+    )
   }
 
   const handleStart = () => {
@@ -106,6 +113,7 @@ export default function WorkoutPage() {
         .insert({
           user_id: user.id,
           exercise_id: exerciseId,
+          exercise_name: exercise.koreanName,
           sets_completed: currentSet,
           reps_completed: currentRep,
           duration_seconds: seconds,
@@ -119,18 +127,6 @@ export default function WorkoutPage() {
         setIsSaving(false)
         return
       }
-
-      const exerciseLog = {
-        userId: user.id,
-        exerciseId,
-        exerciseName: exercise.name,
-        setsCompleted: currentSet,
-        repsCompleted: currentRep,
-        durationSeconds: seconds,
-        completedAt: new Date().toISOString(),
-      }
-      const existingLogs = JSON.parse(localStorage.getItem('exerciseLogs') || '[]')
-      localStorage.setItem('exerciseLogs', JSON.stringify([...existingLogs, exerciseLog]))
 
       alert('운동 완료! 🎉')
       router.push('/dashboard')
@@ -155,45 +151,75 @@ export default function WorkoutPage() {
             <button onClick={() => router.back()} className="text-gray-600">
               <span className="text-2xl">←</span>
             </button>
-            <h1 className="text-xl font-bold text-gray-900">{exercise.name}</h1>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">{exercise.koreanName}</h1>
+              <p className="text-xs text-gray-500">{exercise.name}</p>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-        <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-          <div className="mb-8">
-            <div className="text-6xl font-bold text-blue-600 mb-2">
+      <main className="max-w-7xl mx-auto px-4 py-4 space-y-4">
+        {/* 운동 영상 */}
+        <div className="bg-black rounded-xl overflow-hidden shadow-lg">
+          <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+            <iframe
+              src={exercise.demoVideoUrl}
+              title={exercise.koreanName}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 w-full h-full"
+            />
+          </div>
+        </div>
+
+        {/* 운동 정보 */}
+        <div className="flex gap-2">
+          <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+            {exercise.defaultSets}세트 × {exercise.defaultReps}회
+          </span>
+          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+            {exercise.equipment}
+          </span>
+          <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
+            {exercise.difficulty === 'beginner' ? '초급' : exercise.difficulty === 'intermediate' ? '중급' : '고급'}
+          </span>
+        </div>
+
+        {/* 타이머 & 카운터 */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+          <div className="mb-6">
+            <div className="text-5xl font-bold text-blue-600 mb-1">
               {formatTime(seconds)}
             </div>
-            <p className="text-gray-600">운동 시간</p>
+            <p className="text-sm text-gray-500">운동 시간</p>
           </div>
 
           {isResting ? (
-            <div className="mb-8 bg-orange-50 rounded-xl p-6">
-              <div className="text-5xl font-bold text-orange-600 mb-2">
+            <div className="mb-6 bg-orange-50 rounded-xl p-5">
+              <div className="text-4xl font-bold text-orange-600 mb-1">
                 {restSeconds}초
               </div>
-              <p className="text-orange-700 font-semibold">휴식 중...</p>
+              <p className="text-orange-700 font-semibold text-sm">휴식 중...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-6 mb-8">
-              <div className="bg-blue-50 rounded-xl p-6">
-                <div className="text-4xl font-bold text-blue-600 mb-2">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-blue-50 rounded-xl p-4">
+                <div className="text-3xl font-bold text-blue-600 mb-1">
                   {currentSet} / {exercise.defaultSets}
                 </div>
-                <p className="text-gray-700 font-semibold">세트</p>
+                <p className="text-gray-600 text-sm font-medium">세트</p>
               </div>
-              <div className="bg-green-50 rounded-xl p-6">
-                <div className="text-4xl font-bold text-green-600 mb-2">
+              <div className="bg-green-50 rounded-xl p-4">
+                <div className="text-3xl font-bold text-green-600 mb-1">
                   {currentRep} / {exercise.defaultReps}
                 </div>
-                <p className="text-gray-700 font-semibold">반복</p>
+                <p className="text-gray-600 text-sm font-medium">반복</p>
               </div>
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {!isRunning ? (
               <button
                 onClick={handleStart}
@@ -205,7 +231,7 @@ export default function WorkoutPage() {
               <>
                 <button
                   onClick={handlePause}
-                  className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-4 rounded-xl text-lg"
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 rounded-xl"
                 >
                   {isPaused ? '계속하기' : '일시정지'}
                 </button>
@@ -214,14 +240,14 @@ export default function WorkoutPage() {
                   <>
                     <button
                       onClick={handleRepComplete}
-                      className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-xl text-lg"
+                      className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl"
                     >
                       반복 완료 ({currentRep}/{exercise.defaultReps})
                     </button>
 
                     <button
                       onClick={handleSetComplete}
-                      className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-4 rounded-xl text-lg"
+                      className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-xl"
                     >
                       세트 완료 ({currentSet}/{exercise.defaultSets})
                     </button>
@@ -231,7 +257,7 @@ export default function WorkoutPage() {
                 <button
                   onClick={handleFinish}
                   disabled={isSaving}
-                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white font-bold py-4 rounded-xl text-lg"
+                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white font-bold py-3 rounded-xl"
                 >
                   {isSaving ? '저장 중...' : '운동 종료'}
                 </button>
@@ -240,13 +266,26 @@ export default function WorkoutPage() {
           </div>
         </div>
 
-        <div className="bg-blue-50 rounded-xl p-6">
+        {/* 운동 방법 */}
+        <div className="bg-white rounded-xl shadow-sm p-5">
+          <h3 className="font-bold text-gray-900 mb-3">📖 운동 방법</h3>
+          <ol className="space-y-2">
+            {exercise.instructions.map((step, i) => (
+              <li key={i} className="flex gap-2 text-sm text-gray-700">
+                <span className="text-blue-500 font-bold">{i + 1}.</span>
+                {step}
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {/* 운동 팁 */}
+        <div className="bg-blue-50 rounded-xl p-5">
           <h3 className="font-bold text-gray-900 mb-3">💡 운동 팁</h3>
-          <ul className="space-y-2 text-sm text-gray-700">
-            <li>• 천천히 정확한 자세로 수행하세요</li>
-            <li>• 통증이 느껴지면 즉시 중단하세요</li>
-            <li>• 호흡을 규칙적으로 유지하세요</li>
-            <li>• 세트 간 충분한 휴식을 취하세요</li>
+          <ul className="space-y-1.5">
+            {exercise.tips.map((tip, i) => (
+              <li key={i} className="text-sm text-gray-700">• {tip}</li>
+            ))}
           </ul>
         </div>
       </main>
