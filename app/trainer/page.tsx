@@ -153,6 +153,7 @@ export default function TrainerPage() {
   const [newNote, setNewNote] = useState('')
   const [newNoteIsPublic, setNewNoteIsPublic] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
+  const [totalUnread, setTotalUnread] = useState(0)
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -171,6 +172,38 @@ export default function TrainerPage() {
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false))
   }, [router])
+
+  // 읽지 않은 전체 메시지 수
+  useEffect(() => {
+    if (!user) return
+    const fetchUnread = async () => {
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', user.id)
+        .is('read_at', null)
+      setTotalUnread(count || 0)
+    }
+    fetchUnread()
+
+    const channel = supabase
+      .channel(`trainer-unread-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        () => {
+          setTotalUnread(prev => prev + 1)
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user])
 
   const fetchPatients = async (trainerId?: string) => {
     const { data, error } = await supabase
@@ -493,42 +526,6 @@ export default function TrainerPage() {
         <div className="text-gray-500">로딩중...</div>
       </div>
     )
-  }
-
-  // 읽지 않은 전체 메시지 수
-  const [totalUnread, setTotalUnread] = useState(0)
-
-  useEffect(() => {
-    if (!user) return
-    fetchTotalUnread()
-
-    const channel = supabase
-      .channel(`trainer-unread-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `receiver_id=eq.${user.id}`,
-        },
-        () => {
-          setTotalUnread(prev => prev + 1)
-        }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [user])
-
-  const fetchTotalUnread = async () => {
-    if (!user) return
-    const { count } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('receiver_id', user.id)
-      .is('read_at', null)
-    setTotalUnread(count || 0)
   }
 
   if (!user) return null
