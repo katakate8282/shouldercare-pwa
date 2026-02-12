@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
 
-  console.log('Kakao Callback - Code:', code)
-  console.log('Kakao Callback - Error:', error)
+  console.log('=== Kakao Callback Start ===')
+  console.log('Code:', code ? 'Received' : 'Missing')
+  console.log('Error:', error)
 
   if (error) {
     return NextResponse.redirect(new URL(`/login?error=${error}`, request.url))
@@ -22,38 +23,43 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 현재 요청의 호스트를 기반으로 Redirect URI 생성
-    const host = request.headers.get('host')
-    const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
-    const redirectUri = `${protocol}://${host}/api/auth/kakao/callback`
-
-    console.log('Token exchange - Redirect URI:', redirectUri)
+    const clientId = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID!
+    const redirectUri = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || 'https://shouldercare-pwa.vercel.app/api/auth/kakao/callback'
+    
+    console.log('Client ID:', clientId)
+    console.log('Redirect URI:', redirectUri)
 
     const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID!,
+        client_id: clientId,
         redirect_uri: redirectUri,
         code,
       }),
     })
 
+    const tokenText = await tokenResponse.text()
+    console.log('Token Response Status:', tokenResponse.status)
+    console.log('Token Response:', tokenText)
+
     if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json()
-      console.error('Token exchange failed:', errorData)
-      throw new Error('토큰 교환 실패')
+      throw new Error(`Token exchange failed: ${tokenText}`)
     }
     
-    const tokenData = await tokenResponse.json()
-    console.log('Token received:', tokenData.access_token ? 'Success' : 'Failed')
+    const tokenData = JSON.parse(tokenText)
+    console.log('Access Token:', tokenData.access_token ? 'Received' : 'Missing')
     
     const userResponse = await fetch('https://kapi.kakao.com/v2/user/me', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     })
 
-    if (!userResponse.ok) throw new Error('사용자 정보 조회 실패')
+    if (!userResponse.ok) {
+      const userError = await userResponse.text()
+      throw new Error(`User info failed: ${userError}`)
+    }
+    
     const kakaoUser = await userResponse.json()
     console.log('Kakao User ID:', kakaoUser.id)
 
@@ -66,6 +72,7 @@ export async function GET(request: NextRequest) {
     let userId: string
 
     if (existingUser) {
+      console.log('Existing user found:', existingUser.id)
       await supabase.from('users').update({
         name: kakaoUser.properties?.nickname || '사용자',
         email: kakaoUser.kakao_account?.email || null,
@@ -74,7 +81,8 @@ export async function GET(request: NextRequest) {
       }).eq('kakao_id', kakaoUser.id.toString())
       userId = existingUser.id
     } else {
-      const { data: newUser } = await supabase.from('users').insert({
+      console.log('Creating new user')
+      const { data: newUser, error: insertError } = await supabase.from('users').insert({
         kakao_id: kakaoUser.id.toString(),
         name: kakaoUser.properties?.nickname || '사용자',
         email: kakaoUser.kakao_account?.email || null,
@@ -83,6 +91,12 @@ export async function GET(request: NextRequest) {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).select().single()
+      
+      if (insertError) {
+        console.error('Supabase insert error:', insertError)
+        throw new Error(`Database error: ${insertError.message}`)
+      }
+      
       userId = newUser!.id
     }
 
@@ -92,6 +106,8 @@ export async function GET(request: NextRequest) {
       exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
     })).toString('base64')
 
+    console.log('Login successful, creating session')
+    
     const response = NextResponse.redirect(new URL('/dashboard', request.url))
     response.cookies.set('session', sessionToken, {
       httpOnly: true,
@@ -101,10 +117,10 @@ export async function GET(request: NextRequest) {
       path: '/',
     })
     
-    console.log('Login successful, redirecting to dashboard')
     return response
   } catch (error) {
-    console.error('카카오 로그인 에러:', error)
+    console.error('=== Kakao Login Error ===')
+    console.error('Error:', error)
     return NextResponse.redirect(new URL('/login?error=auth_failed', request.url))
   }
 }
