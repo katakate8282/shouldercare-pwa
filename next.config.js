@@ -3,7 +3,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
+  disable: true, // 임시로 PWA 서비스워커 완전 비활성화
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/fonts\.(?:gstatic)\.com\/.*/i,
@@ -121,9 +121,7 @@ const withPWA = require('next-pwa')({
         const isSameOrigin = self.origin === url.origin;
         if (!isSameOrigin) return false;
         const pathname = url.pathname;
-        // API 경로 제외
         if (pathname.startsWith('/api/')) return false;
-        // 인증 관련 페이지 제외 (캐싱하면 로그인 상태가 꼬임)
         if (pathname.startsWith('/login')) return false;
         if (pathname.startsWith('/dashboard')) return false;
         if (pathname.startsWith('/onboarding')) return false;
