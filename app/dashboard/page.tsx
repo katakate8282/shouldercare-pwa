@@ -290,6 +290,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* 내 기록 바로가기 */}
+        <button
+          onClick={() => router.push('/my-stats')}
+          className="w-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg p-3 text-white text-left hover:shadow-md transition"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📊</span>
+              <div>
+                <p className="font-semibold text-sm">내 기록 · 레벨 · 순위</p>
+                <p className="text-xs text-white/70">주간 리포트와 운동 기록을 확인하세요</p>
+              </div>
+            </div>
+            <span className="text-white/70">→</span>
+          </div>
+        </button>
+
         {/* 트레이너에게 메시지 */}
         {trainerId && (
           <button
