@@ -38,6 +38,8 @@ export default function DashboardPage() {
   const [weekExercises, setWeekExercises] = useState(0)
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [trainerNotes, setTrainerNotes] = useState<TrainerNote[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [trainerId, setTrainerId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -51,6 +53,7 @@ export default function DashboardPage() {
           fetchStats(data.user.id)
           fetchPrescriptions(data.user.id)
           fetchTrainerNotes(data.user.id)
+          fetchTrainerAndUnread(data.user.id)
         } else {
           router.push('/login')
         }
@@ -58,6 +61,31 @@ export default function DashboardPage() {
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false))
   }, [router])
+
+  // Realtime 구독 - 새 메시지 올 때 unread 갱신
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel(`unread-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        () => {
+          setUnreadCount(prev => prev + 1)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
 
   const fetchStats = async (userId: string) => {
     try {
@@ -128,6 +156,50 @@ export default function DashboardPage() {
     }
   }
 
+  const fetchTrainerAndUnread = async (userId: string) => {
+    try {
+      // 트레이너 찾기 (처방을 내린 트레이너 또는 role=trainer인 유저)
+      const { data: rxData } = await supabase
+        .from('prescriptions')
+        .select('trainer_id')
+        .eq('patient_id', userId)
+        .limit(1)
+
+      let tId: string | null = null
+
+      if (rxData && rxData.length > 0) {
+        tId = rxData[0].trainer_id
+      } else {
+        // 처방이 없으면 trainer role 유저 찾기
+        const { data: trainerData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'trainer')
+          .limit(1)
+
+        if (trainerData && trainerData.length > 0) {
+          tId = trainerData[0].id
+        }
+      }
+
+      if (tId) {
+        setTrainerId(tId)
+
+        // 읽지 않은 메시지 수
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('sender_id', tId)
+          .eq('receiver_id', userId)
+          .is('read_at', null)
+
+        setUnreadCount(count || 0)
+      }
+    } catch (error) {
+      console.error('Trainer/unread fetch error:', error)
+    }
+  }
+
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
@@ -194,6 +266,30 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+
+        {/* 트레이너에게 메시지 */}
+        {trainerId && (
+          <button
+            onClick={() => router.push(`/messages/${trainerId}`)}
+            className="w-full bg-white rounded-lg shadow-sm p-3 flex items-center justify-between hover:shadow-md transition"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">💬</span>
+              <div className="text-left">
+                <p className="font-semibold text-gray-900 text-sm">트레이너에게 메시지</p>
+                <p className="text-xs text-gray-500">궁금한 점이나 상태를 공유하세요</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+              <span className="text-gray-400">→</span>
+            </div>
+          </button>
+        )}
 
         {/* 트레이너 메모 (공개) */}
         {trainerNotes.length > 0 && (
@@ -288,6 +384,18 @@ export default function DashboardPage() {
           >
             <span className="text-xl">💪</span>
             <span className="text-xs">운동</span>
+          </button>
+          <button
+            onClick={() => trainerId && router.push(`/messages/${trainerId}`)}
+            className="flex flex-col items-center gap-1 text-gray-400 relative"
+          >
+            <span className="text-xl">💬</span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+            <span className="text-xs">메시지</span>
           </button>
           <button
             onClick={() => router.push('/progress')}
