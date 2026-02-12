@@ -59,6 +59,7 @@ interface TrainerNote {
   patient_id: string
   trainer_id: string
   content: string
+  is_public: boolean
   created_at: string
 }
 
@@ -118,7 +119,6 @@ export default function TrainerPage() {
   })
   const [saving, setSaving] = useState(false)
 
-  // 새로 추가된 상태
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalPatients: 0,
     activePatients: 0,
@@ -131,9 +131,10 @@ export default function TrainerPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [patientLastActivity, setPatientLastActivity] = useState<Record<string, string>>({})
   const [patientAlertStatus, setPatientAlertStatus] = useState<Record<string, boolean>>({})
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
 
-  // 메모 관련
   const [newNote, setNewNote] = useState('')
+  const [newNoteIsPublic, setNewNoteIsPublic] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
 
   useEffect(() => {
@@ -145,7 +146,7 @@ export default function TrainerPage() {
       .then(data => {
         if (data.user) {
           setUser(data.user)
-          fetchPatients()
+          fetchPatients(data.user.id)
         } else {
           router.push('/login')
         }
@@ -154,7 +155,7 @@ export default function TrainerPage() {
       .finally(() => setLoading(false))
   }, [router])
 
-  const fetchPatients = async () => {
+  const fetchPatients = async (trainerId?: string) => {
     const { data, error } = await supabase
       .from('users')
       .select('id, name, email, onboarding_completed, rehab_goal, pain_level_initial, created_at, updated_at')
@@ -162,18 +163,18 @@ export default function TrainerPage() {
 
     if (!error && data) {
       setPatients(data)
-      fetchDashboardStats(data)
+      fetchDashboardStats(data, trainerId)
     }
   }
 
-  const fetchDashboardStats = async (patientList: Patient[]) => {
+  const fetchDashboardStats = async (patientList: Patient[], trainerId?: string) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayISO = today.toISOString()
+    const todayDate = today.toISOString().split('T')[0]
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
-    // 오늘 운동 완료한 고유 유저 수
     const { data: todayLogs } = await supabase
       .from('exercise_logs')
       .select('user_id')
@@ -181,7 +182,6 @@ export default function TrainerPage() {
 
     const todayUniqueUsers = new Set(todayLogs?.map(l => l.user_id) || [])
 
-    // 최근 7일 활동 유저
     const { data: weekLogs } = await supabase
       .from('exercise_logs')
       .select('user_id, completed_at')
@@ -189,7 +189,6 @@ export default function TrainerPage() {
 
     const activeUsers = new Set(weekLogs?.map(l => l.user_id) || [])
 
-    // 환자별 최근 활동 시간
     const lastActivityMap: Record<string, string> = {}
     weekLogs?.forEach(log => {
       if (!lastActivityMap[log.user_id] || log.completed_at > lastActivityMap[log.user_id]) {
@@ -198,7 +197,6 @@ export default function TrainerPage() {
     })
     setPatientLastActivity(lastActivityMap)
 
-    // 통증 급증 알림 (오늘 통증 8 이상)
     const { data: painLogs } = await supabase
       .from('pain_logs')
       .select('user_id, pain_level, logged_at')
@@ -206,17 +204,29 @@ export default function TrainerPage() {
       .gte('pain_level', 8)
       .order('logged_at', { ascending: false })
 
+    // 이미 해제된 알림 조회
+    const { data: dismissals } = await supabase
+      .from('alert_dismissals')
+      .select('patient_id')
+      .eq('alert_type', 'pain_spike')
+      .eq('alert_date', todayDate)
+
+    const dismissedSet = new Set((dismissals || []).map(d => d.patient_id))
+    setDismissedAlerts(dismissedSet)
+
     const alertMap: Record<string, boolean> = {}
-    const painAlerts = (painLogs || []).map(log => {
-      const patient = patientList.find(p => p.id === log.user_id)
-      alertMap[log.user_id] = true
-      return {
-        patientId: log.user_id,
-        patientName: patient?.name || '알 수 없음',
-        painLevel: log.pain_level,
-        loggedAt: log.logged_at,
-      }
-    })
+    const painAlerts = (painLogs || [])
+      .filter(log => !dismissedSet.has(log.user_id))
+      .map(log => {
+        const patient = patientList.find(p => p.id === log.user_id)
+        alertMap[log.user_id] = true
+        return {
+          patientId: log.user_id,
+          patientName: patient?.name || '알 수 없음',
+          painLevel: log.pain_level,
+          loggedAt: log.logged_at,
+        }
+      })
     setPatientAlertStatus(alertMap)
 
     setDashboardStats({
@@ -225,6 +235,29 @@ export default function TrainerPage() {
       todayExerciseCompleted: todayUniqueUsers.size,
       painAlerts,
     })
+  }
+
+  const dismissAlert = async (patientId: string) => {
+    if (!user) return
+
+    await supabase.from('alert_dismissals').upsert({
+      patient_id: patientId,
+      trainer_id: user.id,
+      alert_type: 'pain_spike',
+      alert_date: new Date().toISOString().split('T')[0],
+    }, { onConflict: 'patient_id,alert_type,alert_date' })
+
+    // UI에서 즉시 제거
+    setDismissedAlerts(prev => new Set([...prev, patientId]))
+    setPatientAlertStatus(prev => {
+      const next = { ...prev }
+      delete next[patientId]
+      return next
+    })
+    setDashboardStats(prev => ({
+      ...prev,
+      painAlerts: prev.painAlerts.filter(a => a.patientId !== patientId),
+    }))
   }
 
   const fetchPrescriptions = async (patientId: string) => {
@@ -250,7 +283,6 @@ export default function TrainerPage() {
     const twoWeeksAgo = new Date()
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
 
-    // 통증 기록 (최근 2주)
     const { data: painLogs } = await supabase
       .from('pain_logs')
       .select('*')
@@ -258,7 +290,6 @@ export default function TrainerPage() {
       .gte('logged_at', twoWeeksAgo.toISOString())
       .order('logged_at', { ascending: true })
 
-    // 운동 기록 (최근 1달)
     const { data: exerciseLogs } = await supabase
       .from('exercise_logs')
       .select('*')
@@ -266,7 +297,6 @@ export default function TrainerPage() {
       .gte('completed_at', monthAgo.toISOString())
       .order('completed_at', { ascending: false })
 
-    // 처방
     const { data: prescriptions } = await supabase
       .from('prescriptions')
       .select('*')
@@ -274,7 +304,6 @@ export default function TrainerPage() {
       .eq('status', 'active')
       .order('prescribed_at', { ascending: false })
 
-    // 트레이너 메모
     const { data: notes } = await supabase
       .from('trainer_notes')
       .select('*')
@@ -282,11 +311,8 @@ export default function TrainerPage() {
       .order('created_at', { ascending: false })
       .limit(10)
 
-    // 이번 주 운동 횟수 / 일수
     const weekLogs = (exerciseLogs || []).filter(l => new Date(l.completed_at) >= weekAgo)
     const weekDays = new Set(weekLogs.map(l => new Date(l.completed_at).toDateString())).size
-
-    // 이번 달 운동 횟수 / 일수
     const monthDays = new Set((exerciseLogs || []).map(l => new Date(l.completed_at).toDateString())).size
 
     setPatientDetail({
@@ -348,6 +374,8 @@ export default function TrainerPage() {
     if (!error) {
       setShowAddModal(false)
       fetchPrescriptions(selectedPatient.id)
+      // 처방 시 해당 환자 알림 자동 해제
+      await dismissAlert(selectedPatient.id)
     } else {
       console.error('Prescription error:', error)
     }
@@ -373,11 +401,15 @@ export default function TrainerPage() {
       patient_id: selectedPatient.id,
       trainer_id: user.id,
       content: newNote.trim(),
+      is_public: newNoteIsPublic,
     })
 
     if (!error) {
       setNewNote('')
+      setNewNoteIsPublic(false)
       fetchPatientDetail(selectedPatient)
+      // 메모 저장 시 해당 환자 알림 자동 해제
+      await dismissAlert(selectedPatient.id)
     }
     setSavingNote(false)
   }
@@ -390,7 +422,6 @@ export default function TrainerPage() {
     return matchSearch && matchCategory
   })
 
-  // 환자 정렬
   const getSortedPatients = () => {
     let filtered = patients.filter(p =>
       p.name.includes(patientSearchQuery) || p.email.includes(patientSearchQuery)
@@ -506,7 +537,6 @@ export default function TrainerPage() {
               className="w-full px-4 py-2 border rounded-lg mb-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
 
-            {/* 정렬 버튼 */}
             <div className="flex gap-2 mb-3">
               {[
                 { key: 'name' as const, label: '이름순' },
@@ -667,7 +697,6 @@ export default function TrainerPage() {
                 <p className="text-center text-gray-400 py-4 text-sm">통증 기록이 없습니다</p>
               ) : (
                 <div>
-                  {/* 간단한 텍스트 기반 추이 */}
                   <div className="space-y-1.5">
                     {patientDetail.recentPainLogs.map((log) => (
                       <div key={log.id} className="flex items-center gap-2">
@@ -736,20 +765,33 @@ export default function TrainerPage() {
             <div className="bg-white rounded-lg shadow-sm p-4">
               <h3 className="font-semibold text-gray-900 mb-3">💬 트레이너 메모</h3>
 
-              <div className="flex gap-2 mb-4">
+              <div className="space-y-3 mb-4">
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   placeholder="메모 입력..."
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm h-16 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full border rounded-lg px-3 py-2 text-sm h-16 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <button
-                  onClick={handleSaveNote}
-                  disabled={savingNote || !newNote.trim()}
-                  className="bg-blue-500 text-white px-4 rounded-lg text-sm font-medium hover:bg-blue-600 disabled:bg-blue-300 transition self-end h-10"
-                >
-                  {savingNote ? '...' : '저장'}
-                </button>
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newNoteIsPublic}
+                      onChange={(e) => setNewNoteIsPublic(e.target.checked)}
+                      className="w-4 h-4 text-blue-500 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-600">
+                      {newNoteIsPublic ? '👁 환자에게 공개' : '🔒 트레이너만 보기'}
+                    </span>
+                  </label>
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={savingNote || !newNote.trim()}
+                    className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 disabled:bg-blue-300 transition"
+                  >
+                    {savingNote ? '...' : '저장'}
+                  </button>
+                </div>
               </div>
 
               {patientDetail.trainerNotes.length === 0 ? (
@@ -757,7 +799,16 @@ export default function TrainerPage() {
               ) : (
                 <div className="space-y-3">
                   {patientDetail.trainerNotes.map((note) => (
-                    <div key={note.id} className="border-l-2 border-blue-300 pl-3">
+                    <div key={note.id} className={`border-l-2 pl-3 ${note.is_public ? 'border-green-400' : 'border-gray-300'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          note.is_public
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {note.is_public ? '👁 공개' : '🔒 비공개'}
+                        </span>
+                      </div>
                       <p className="text-sm text-gray-800">{note.content}</p>
                       <p className="text-xs text-gray-400 mt-1">
                         {new Date(note.created_at).toLocaleDateString('ko-KR')} {new Date(note.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
