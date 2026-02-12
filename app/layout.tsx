@@ -14,7 +14,27 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  registrations.forEach(function(registration) {
+                    registration.unregister();
+                  });
+                });
+                caches.keys().then(function(cacheNames) {
+                  cacheNames.forEach(function(cacheName) {
+                    caches.delete(cacheName);
+                  });
+                });
+              }
+            `,
+          }}
+        />
+      </body>
     </html>
   )
 }
