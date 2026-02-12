@@ -1,12 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const kakaoClientId = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID
-  
-  // 현재 요청의 호스트를 기반으로 Redirect URI 생성
-  const host = request.headers.get('host')
-  const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
-  const redirectUri = `${protocol}://${host}/api/auth/kakao/callback`
+  const redirectUri = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || 'https://shouldercare-pwa.vercel.app/api/auth/kakao/callback'
 
   if (!kakaoClientId) {
     return NextResponse.json(
@@ -14,6 +10,9 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
+
+  console.log('Kakao OAuth - Client ID:', kakaoClientId)
+  console.log('Kakao OAuth - Redirect URI:', redirectUri)
 
   // 카카오 OAuth 인증 URL
   const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${kakaoClientId}&redirect_uri=${encodeURIComponent(
