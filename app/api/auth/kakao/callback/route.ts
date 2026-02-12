@@ -24,9 +24,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const clientId = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID!
+    const clientSecret = process.env.KAKAO_CLIENT_SECRET!
     const redirectUri = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || 'https://shouldercare-pwa.vercel.app/api/auth/kakao/callback'
     
     console.log('Client ID:', clientId)
+    console.log('Client Secret:', clientSecret ? 'Present' : 'Missing')
     console.log('Redirect URI:', redirectUri)
 
     const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
@@ -35,6 +37,7 @@ export async function GET(request: NextRequest) {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: clientId,
+        client_secret: clientSecret,
         redirect_uri: redirectUri,
         code,
       }),
