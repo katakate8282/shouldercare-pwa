@@ -391,6 +391,26 @@ export default function DashboardPage() {
             <p className="font-semibold text-gray-900 text-sm">통증 기록</p>
             <p className="text-xs text-gray-600">오늘 통증 수준 입력</p>
           </button>
+          {(user.role === 'trainer' || user.role === 'admin') && (
+            <button
+              onClick={() => router.push('/trainer')}
+              className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow"
+            >
+              <span className="text-xl mb-1.5 block">👨‍⚕️</span>
+              <p className="font-semibold text-gray-900 text-sm">트레이너</p>
+              <p className="text-xs text-gray-600">환자 관리</p>
+            </button>
+          )}
+          {user.role === 'admin' && (
+            <button
+              onClick={() => router.push('/admin')}
+              className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow"
+            >
+              <span className="text-xl mb-1.5 block">⚙️</span>
+              <p className="font-semibold text-gray-900 text-sm">관리자</p>
+              <p className="text-xs text-gray-600">트레이너·환자 관리</p>
+            </button>
+          )}
         </div>
       </main>
 
