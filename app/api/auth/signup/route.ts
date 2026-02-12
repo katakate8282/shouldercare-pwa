@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
         email,
         name,
         password_hash: hashPassword(password),
+        onboarding_completed: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -60,7 +61,11 @@ export async function POST(request: NextRequest) {
 
     const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64')
 
-    const response = NextResponse.json({ success: true, user: { id: user.id, email: user.email, name: user.name } })
+    const response = NextResponse.json({
+      success: true,
+      user: { id: user.id, email: user.email, name: user.name },
+      redirect: '/onboarding'
+    })
     response.cookies.set('session', sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
