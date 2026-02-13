@@ -1,0 +1,86 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+})
+
+function hashPassword(password: string): string {
+  return crypto.createHash('sha256').update(password).digest('hex')
+}
+
+function generateHospitalToken(hospitalId: string, email: string): string {
+  const payload = {
+    hospitalId,
+    email,
+    type: 'hospital_admin',
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    iat: Date.now(),
+  }
+  const secret = process.env.TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'shouldercare-secret'
+  const data = JSON.stringify(payload)
+  const signature = crypto.createHmac('sha256', secret).update(data).digest('hex')
+  return Buffer.from(JSON.stringify({ data: payload, sig: signature })).toString('base64url')
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { email, password } = await request.json()
+
+    if (!email || !password) {
+      return NextResponse.json({ error: '이메일과 비밀번호를 입력해주세요.' }, { status: 400 })
+    }
+
+    const { data: hospital, error: dbError } = await supabase
+      .from('hospitals')
+      .select('*')
+      .eq('admin_email', email.toLowerCase().trim())
+      .eq('contract_status', 'active')
+      .single()
+
+    if (dbError || !hospital) {
+      return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
+    }
+
+    if (!hospital.admin_password_hash || hospital.admin_password_hash !== hashPassword(password)) {
+      return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
+    }
+
+    const token = generateHospitalToken(hospital.id, email)
+
+    const response = NextResponse.json({
+      success: true,
+      token,
+      hospital: {
+        id: hospital.id,
+        name: hospital.name,
+        prefix: hospital.prefix,
+        plan_type: hospital.plan_type,
+      },
+    })
+
+    response.cookies.set('hospital_session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
+
+    response.cookies.set('hospital_id', hospital.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
+
+    return response
+  } catch (error) {
+    console.error('Hospital login error:', error)
+    return NextResponse.json({ error: '로그인 처리 중 오류가 발생했습니다.' }, { status: 500 })
+  }
+}
