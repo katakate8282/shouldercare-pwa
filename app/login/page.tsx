@@ -223,42 +223,42 @@ export default function LoginPage() {
   // ===== 스플래시 화면 =====
   if (view === 'splash') {
     return (
-      <div className={`min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4 transition-opacity duration-500 ${splashFading ? 'opacity-0' : 'opacity-100'}`}>
+      <div className={`min-h-screen bg-gradient-to-br from-[#0369A1] via-[#0284C7] to-[#38BDF8] flex items-center justify-center p-4 transition-opacity duration-500 ${splashFading ? 'opacity-0' : 'opacity-100'}`}>
         <div className="text-center w-full max-w-sm">
           <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-5 shadow-2xl">
-            <span className="text-5xl">🏥</span>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 4a3 3 0 00-3 3v4a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M6 4a3 3 0 00-3 3v4a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M12 18v-6"/><path d="M6 11c0 4 2.5 6 6 6s6-2 6-6"/></svg>
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">어깨케어</h1>
-          <p className="text-blue-100 text-base mb-10">AI 기반 어깨 재활 전문 플랫폼</p>
+          <p className="text-sky-100 text-base mb-10">AI 기반 어깨 재활 전문 플랫폼</p>
 
           <div className="space-y-4">
             <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-4 flex items-center gap-4">
               <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-2xl">🤖</span>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a5 5 0 015 5v3H7V7a5 5 0 015-5z"/><rect x="3" y="10" width="18" height="11" rx="2"/><line x1="9" y1="15" x2="9" y2="15.01"/><line x1="15" y1="15" x2="15" y2="15.01"/></svg>
               </div>
               <div className="text-left">
                 <p className="text-white font-bold text-sm">AI 자세분석</p>
-                <p className="text-blue-100 text-xs">실시간 운동 피드백</p>
+                <p className="text-sky-200/70 text-xs">실시간 운동 피드백</p>
               </div>
             </div>
 
             <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-4 flex items-center gap-4">
               <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-2xl">👨‍⚕️</span>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
               </div>
               <div className="text-left">
                 <p className="text-white font-bold text-sm">1:1 전문 트레이너</p>
-                <p className="text-blue-100 text-xs">맞춤형 운동 제안</p>
+                <p className="text-sky-200/70 text-xs">맞춤형 운동 제안</p>
               </div>
             </div>
 
             <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-4 flex items-center gap-4">
               <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-2xl">📊</span>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
               </div>
               <div className="text-left">
                 <p className="text-white font-bold text-sm">재활 진행상황 추적</p>
-                <p className="text-blue-100 text-xs">통증, ROM 등 자동 기록</p>
+                <p className="text-sky-200/70 text-xs">통증, ROM 등 자동 기록</p>
               </div>
             </div>
           </div>
@@ -274,7 +274,7 @@ export default function LoginPage() {
   // ===== 메인 화면 (로그인 옵션) =====
   if (view === 'main') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4 animate-fadeIn">
+      <div className="min-h-screen bg-gradient-to-br from-[#0369A1] via-[#0284C7] to-[#38BDF8] flex items-center justify-center p-4 animate-fadeIn">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <div className="text-center mb-8">
