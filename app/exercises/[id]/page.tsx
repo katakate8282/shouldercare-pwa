@@ -1,6 +1,6 @@
 'use client'
 
-import { getExerciseById, getDifficultyColor, getCategoryDisplayName } from '@/lib/data/exercises'
+import { getExerciseById, getDifficultyColor, getCategoryDisplayName, getSignedVideoUrl, getSignedThumbnailUrl } from '@/lib/data/exercises'
 import type { Exercise } from '@/lib/data/exercises'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -10,6 +10,8 @@ export default function ExerciseDetailPage({ params }: { params: { id: string } 
   const [exercise, setExercise] = useState<Exercise | null>(null)
   const [loading, setLoading] = useState(true)
   const [showVideo, setShowVideo] = useState(false)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -20,6 +22,16 @@ export default function ExerciseDetailPage({ params }: { params: { id: string } 
       }
       const data = await getExerciseById(id)
       setExercise(data)
+
+      if (data?.video_filename) {
+        const [vUrl, tUrl] = await Promise.all([
+          getSignedVideoUrl(data.video_filename),
+          getSignedThumbnailUrl(data.video_filename),
+        ])
+        setVideoUrl(vUrl)
+        setThumbnailUrl(tUrl)
+      }
+
       setLoading(false)
     }
     load()
@@ -69,14 +81,16 @@ export default function ExerciseDetailPage({ params }: { params: { id: string } 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Video Section */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          {exercise.video_url ? (
+          {videoUrl ? (
             showVideo ? (
               <div className="aspect-video bg-black">
                 <video
-                  src={exercise.video_url}
+                  src={videoUrl}
                   controls
                   autoPlay
                   playsInline
+                  controlsList="nodownload"
+                  onContextMenu={(e) => e.preventDefault()}
                   className="w-full h-full"
                 >
                   브라우저가 비디오를 지원하지 않습니다.
@@ -87,9 +101,9 @@ export default function ExerciseDetailPage({ params }: { params: { id: string } 
                 onClick={() => setShowVideo(true)}
                 className="aspect-video bg-gray-900 relative cursor-pointer group"
               >
-                {exercise.thumbnail_url ? (
+                {thumbnailUrl ? (
                   <img
-                    src={exercise.thumbnail_url}
+                    src={thumbnailUrl}
                     alt={exercise.name_ko}
                     className="w-full h-full object-cover"
                   />
@@ -194,14 +208,14 @@ export default function ExerciseDetailPage({ params }: { params: { id: string } 
           </button>
           <button
             onClick={() => {
-              if (exercise.video_url) {
+              if (videoUrl) {
                 setShowVideo(true)
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }
             }}
             className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 rounded-lg transition"
           >
-            {exercise.video_url ? '영상 보기' : '영상 준비중'}
+            {videoUrl ? '영상 보기' : '영상 준비중'}
           </button>
         </div>
       </main>

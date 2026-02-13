@@ -1,6 +1,6 @@
 'use client'
 
-import { getExercises, getCategories, getDifficultyColor, getCategoryDisplayName } from '@/lib/data/exercises'
+import { getExercises, getCategories, getDifficultyColor, getCategoryDisplayName, getSignedThumbnailUrl } from '@/lib/data/exercises'
 import type { Exercise } from '@/lib/data/exercises'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -11,6 +11,7 @@ export default function ExercisesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [categories, setCategories] = useState<string[]>([])
+  const [thumbnails, setThumbnails] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,6 +23,16 @@ export default function ExercisesPage() {
       setExercises(exData)
       setCategories(catData)
       setLoading(false)
+
+      // 썸네일 Signed URL 로드
+      const thumbMap: Record<number, string> = {}
+      await Promise.all(
+        exData.filter(ex => ex.video_filename).map(async (ex) => {
+          const url = await getSignedThumbnailUrl(ex.video_filename!)
+          if (url) thumbMap[ex.id] = url
+        })
+      )
+      setThumbnails(thumbMap)
     }
     load()
   }, [])
@@ -32,6 +43,15 @@ export default function ExercisesPage() {
       const data = await getExercises(selectedCategory)
       setExercises(data)
       setLoading(false)
+
+      const thumbMap: Record<number, string> = {}
+      await Promise.all(
+        data.filter(ex => ex.video_filename).map(async (ex) => {
+          const url = await getSignedThumbnailUrl(ex.video_filename!)
+          if (url) thumbMap[ex.id] = url
+        })
+      )
+      setThumbnails(prev => ({ ...prev, ...thumbMap }))
     }
     load()
   }, [selectedCategory])
@@ -101,9 +121,9 @@ export default function ExercisesPage() {
                   <div className="flex gap-4 p-4">
                     {/* Thumbnail */}
                     <div className="w-24 h-24 bg-gray-200 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center">
-                      {exercise.thumbnail_url ? (
+                      {thumbnails[exercise.id] ? (
                         <img
-                          src={exercise.thumbnail_url}
+                          src={thumbnails[exercise.id]}
                           alt={exercise.name_ko}
                           className="w-full h-full object-cover"
                         />
