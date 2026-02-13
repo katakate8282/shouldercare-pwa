@@ -1,7 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { fetchWithAuth } from '@/lib/fetch-auth'
 
 // ===== 타입 =====
 interface SurveyData {
@@ -287,6 +288,35 @@ export default function SurveyPage() {
   const [survey, setSurvey] = useState<SurveyData>({ ...INITIAL_SURVEY })
   const [animating, setAnimating] = useState(false)
 
+  // 병원 진단 데이터 자동 채움
+  const [hospitalDiagnosis, setHospitalDiagnosis] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchWithAuth("/api/auth/link-hospital")
+      .then(res => res.json())
+      .then(data => {
+        if (data.linked && data.patient?.diagnosis) {
+          setHospitalDiagnosis(data.patient.diagnosis)
+          const diagMap: Record<string, string> = {
+            "충돌증후군": "impingement",
+            "회전근개 부분파열": "rotator_partial",
+            "회전근개 완전파열": "rotator_complete",
+            "오십견": "frozen_shoulder",
+            "슬랩": "slap",
+            "방카르트": "bankart",
+            "석회성건염": "calcific",
+          }
+          const matched = Object.entries(diagMap)
+            .filter(([k]) => data.patient.diagnosis.includes(k))
+            .map(([, v]) => v)
+          if (matched.length > 0) {
+            setSurvey(prev => ({ ...prev, previous_diagnosis: matched }))
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   // 설문 완료 처리
   const handleComplete = (finalData?: Partial<SurveyData>) => {
     const finalSurvey = { ...survey, ...finalData }
@@ -495,7 +525,7 @@ export default function SurveyPage() {
       return (
         <QuestionWrapper
           num={7}
-          title="이전에 어깨 관련 진단을 받은 적 있나요?"
+          title={hospitalDiagnosis ? `이전 진단 (🏥 병원 진단: ${hospitalDiagnosis})` : "이전에 어깨 관련 진단을 받은 적 있나요?"}
           subtitle="여러 개 선택 가능"
           showNext
           nextEnabled={survey.previous_diagnosis.length > 0}
