@@ -191,7 +191,7 @@ export const mockExercises: Exercise[] = []
 // Signed URL 발급 (Private 버킷용)
 export async function getSignedVideoUrl(videoFilename: string): Promise<string | null> {
   try {
-    const res = await fetch(`/api/storage?path=${encodeURIComponent(videoFilename)}`)
+    const res = await fetch('/api/storage?path=' + encodeURIComponent(videoFilename))
     if (!res.ok) return null
     const data = await res.json()
     return data.url || null
@@ -203,7 +203,7 @@ export async function getSignedVideoUrl(videoFilename: string): Promise<string |
 export async function getSignedThumbnailUrl(videoFilename: string): Promise<string | null> {
   const thumbFilename = `thumbnails/${videoFilename.replace('.mp4', '.jpg')}`
   try {
-    const res = await fetch(`/api/storage?path=${encodeURIComponent(thumbFilename)}`)
+    const res = await fetch('/api/storage?path=' + encodeURIComponent(thumbFilename))
     if (!res.ok) return null
     const data = await res.json()
     return data.url || null
