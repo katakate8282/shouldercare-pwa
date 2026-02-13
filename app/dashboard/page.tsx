@@ -468,7 +468,7 @@ export default function DashboardPage() {
               <button onClick={() => router.push('/messages')} className="relative text-gray-600">
                 <span className="text-2xl">💬</span>
               </button>
-              <button onClick={handleLogout} className="text-gray-600 hover:text-gray-900">
+              <button onClick={() => router.push('/settings')} className="text-gray-600 hover:text-gray-900">
                 <span className="text-2xl">👤</span>
               </button>
             </div>
@@ -583,7 +583,7 @@ export default function DashboardPage() {
                   </span>
                 )}
               </button>
-              <button onClick={handleLogout} className="text-gray-600 hover:text-gray-900">
+              <button onClick={() => router.push('/settings')} className="text-gray-600 hover:text-gray-900">
                 <span className="text-2xl">👤</span>
               </button>
             </div>
@@ -835,7 +835,7 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold text-gray-900">{user.name}</p>
               <p className="text-xs text-gray-500">{subscriptionLabel}</p>
             </div>
-            <button onClick={handleLogout} className="text-gray-600 hover:text-gray-900">
+            <button onClick={() => router.push('/settings')} className="text-gray-600 hover:text-gray-900">
               <span className="text-2xl">👤</span>
             </button>
           </div>
