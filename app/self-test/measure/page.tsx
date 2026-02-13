@@ -185,6 +185,7 @@ export default function MeasurePage() {
   const capturedRef = useRef(false)
   const poseRef = useRef<any>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const frameIdRef = useRef<number>(0)
 
   // 설문 데이터 로드
   useEffect(() => {
@@ -233,6 +234,20 @@ export default function MeasurePage() {
   // 카메라 + Pose 시작
   const startCamera = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !window.Pose) return
+
+    // 기존 리소스 정리
+    if (frameIdRef.current) {
+      cancelAnimationFrame(frameIdRef.current)
+      frameIdRef.current = 0
+    }
+    if (poseRef.current) {
+      try { poseRef.current.close() } catch (e) {}
+      poseRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -331,11 +346,13 @@ export default function MeasurePage() {
 
       const sendFrame = async () => {
         if (videoRef.current && poseRef.current && videoRef.current.readyState >= 2) {
-          await poseRef.current.send({ image: videoRef.current })
+          try {
+            await poseRef.current.send({ image: videoRef.current })
+          } catch (e) {}
         }
-        requestAnimationFrame(sendFrame)
+        frameIdRef.current = requestAnimationFrame(sendFrame)
       }
-      sendFrame()
+      frameIdRef.current = requestAnimationFrame(sendFrame)
 
     } catch (err: any) {
       console.error('Camera error:', err)
@@ -348,11 +365,26 @@ export default function MeasurePage() {
   }, [measureStep])
 
   const stopCamera = useCallback(() => {
+    // 애니메이션 프레임 중지
+    if (frameIdRef.current) {
+      cancelAnimationFrame(frameIdRef.current)
+      frameIdRef.current = 0
+    }
+    // Pose 정리
+    if (poseRef.current) {
+      try { poseRef.current.close() } catch (e) {}
+      poseRef.current = null
+    }
+    // 카메라 스트림 정리
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
     setCameraReady(false)
+    setCameraError('')
   }, [])
 
   // 카메라 전환
@@ -370,6 +402,9 @@ export default function MeasurePage() {
     setMaxAngle(0)
     setHoldTimer(0)
 
+    // 이전 카메라 정리
+    stopCamera()
+
     if (measureStep === 'intro') {
       setMeasureStep('flexion')
       setShowGuideOverlay(true)
@@ -380,20 +415,25 @@ export default function MeasurePage() {
       setMeasureStep('external_rotation')
       setShowGuideOverlay(true)
     } else if (measureStep === 'external_rotation') {
-      stopCamera()
       setMeasureStep('done')
     }
   }
 
-  // 카메라 시작
+  // 가이드 오버레이 닫히면 카메라 시작
   useEffect(() => {
-    if (measureStep !== 'intro' && measureStep !== 'done' && poseLoaded) {
+    if (measureStep !== 'intro' && measureStep !== 'done' && poseLoaded && !showGuideOverlay) {
       startCamera()
     }
+  }, [measureStep, poseLoaded, facingMode, showGuideOverlay, startCamera])
+
+  // 컴포넌트 언마운트 시 정리
+  useEffect(() => {
     return () => {
-      if (measureStep === 'done') stopCamera()
+      if (frameIdRef.current) cancelAnimationFrame(frameIdRef.current)
+      if (poseRef.current) try { poseRef.current.close() } catch (e) {}
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop())
     }
-  }, [measureStep, poseLoaded, facingMode, startCamera, stopCamera])
+  }, [])
 
   const goToResult = () => {
     sessionStorage.setItem('selftest_rom', JSON.stringify(rom))
