@@ -223,7 +223,7 @@ export default function LoginPage() {
   // ===== 스플래시 화면 =====
   if (view === 'splash') {
     return (
-      <div className={`min-h-screen bg-gradient-to-br from-[#0369A1] via-[#0284C7] to-[#38BDF8] flex items-center justify-center p-4 transition-opacity duration-500 ${splashFading ? 'opacity-0' : 'opacity-100'}`}>
+      <div className={`min-h-screen bg-gradient-to-br bg-[#0284C7] flex items-center justify-center p-4 transition-opacity duration-500 ${splashFading ? 'opacity-0' : 'opacity-100'}`}>
         <div className="text-center w-full max-w-sm">
           <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-5 shadow-2xl">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 4a3 3 0 00-3 3v4a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M6 4a3 3 0 00-3 3v4a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M12 18v-6"/><path d="M6 11c0 4 2.5 6 6 6s6-2 6-6"/></svg>
@@ -274,7 +274,7 @@ export default function LoginPage() {
   // ===== 메인 화면 (로그인 옵션) =====
   if (view === 'main') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0369A1] via-[#0284C7] to-[#38BDF8] flex items-center justify-center p-4 animate-fadeIn">
+      <div className="min-h-screen bg-gradient-to-br bg-[#0284C7] flex items-center justify-center p-4 animate-fadeIn">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <div className="text-center mb-8">
