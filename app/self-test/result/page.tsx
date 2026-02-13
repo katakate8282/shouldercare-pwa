@@ -316,7 +316,7 @@ function ResultContent() {
             className="w-full py-3.5 rounded-xl text-white font-bold text-sm"
             style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
           >
-            대시보드로 돌아가기
+            저장하고 홈화면으로 돌아가기
           </button>
           <button
             onClick={() => router.push('/self-test')}
