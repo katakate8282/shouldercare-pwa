@@ -372,28 +372,6 @@ export default function AdminPage() {
         {/* ====== 현황·회원 탭 ====== */}
         {tab === 'overview' && !selectedTrainer && (
           <>
-            {/* 위험 알림 */}
-            {alerts.length > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-lg">
-                <div className="p-3 border-b border-red-200 flex items-center justify-between">
-                  <h2 className="font-semibold text-red-700">🚨 위험 알림 ({alerts.length})</h2>
-                </div>
-                <div className="divide-y divide-red-100 max-h-48 overflow-y-auto">
-                  {alerts.map((alert, idx) => (
-                    <div key={idx} className="px-4 py-2.5 flex items-center justify-between">
-                      <div>
-                        <button onClick={() => { const u = allUsers.find(x => x.id === alert.userId); if (u) openMemberDetail(u) }} className="font-medium text-gray-900 text-sm hover:text-blue-600">{alert.userName}</button>
-                        <p className="text-xs text-red-600">{alert.detail}</p>
-                      </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${alert.type === 'pain_spike' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                        {alert.type === 'pain_spike' ? '통증 급증' : '미활동'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* 구독 회원 현황 */}
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-3 border-b">
@@ -497,29 +475,46 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* 오늘의 활동 피드 */}
+            {/* 오늘의 활동 피드 (유저별 운동 요약) */}
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-3 border-b">
                 <h2 className="font-semibold text-gray-900">📋 오늘의 활동 피드</h2>
               </div>
-              {activities.length === 0 ? (
-                <div className="p-8 text-center text-gray-400 text-sm">오늘 활동이 없습니다</div>
-              ) : (
-                <div className="divide-y max-h-64 overflow-y-auto">
-                  {activities.map(act => (
-                    <div key={act.id} className="px-4 py-2.5 flex items-center gap-3">
-                      <span className="text-lg">{act.type === 'exercise' ? '💪' : '😣'}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-900 truncate">
-                          <button onClick={() => { const u = allUsers.find(x => x.id === act.userId); if (u) openMemberDetail(u) }} className="font-medium hover:text-blue-600">{act.userName}</button>
-                          <span className="text-gray-500"> · {act.detail}</span>
-                        </p>
-                      </div>
-                      <span className="text-xs text-gray-400 shrink-0">{act.time}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const exerciseActivities = activities.filter(a => a.type === 'exercise')
+                // 유저별 그룹화
+                const userMap: Record<string, { userName: string; userId: string; exercises: string[]; count: number }> = {}
+                exerciseActivities.forEach(act => {
+                  if (!userMap[act.userId]) {
+                    userMap[act.userId] = { userName: act.userName, userId: act.userId, exercises: [], count: 0 }
+                  }
+                  userMap[act.userId].exercises.push(act.detail)
+                  userMap[act.userId].count++
+                })
+                const userList = Object.values(userMap)
+
+                if (userList.length === 0) {
+                  return <div className="p-8 text-center text-gray-400 text-sm">오늘 운동 기록이 없습니다</div>
+                }
+
+                return (
+                  <div className="divide-y">
+                    {userList.map(u => (
+                      <button key={u.userId} onClick={() => { const member = allUsers.find(x => x.id === u.userId); if (member) openMemberDetail(member) }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3">
+                        <span className="text-lg">💪</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate">
+                            <span className="font-medium text-gray-900">{u.userName}</span>
+                            <span className="text-gray-500"> · {u.exercises.join(', ')}</span>
+                          </p>
+                        </div>
+                        <span className="text-xs text-blue-500 shrink-0">{u.count}회</span>
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
           </>
         )}
@@ -555,7 +550,8 @@ export default function AdminPage() {
                       <p className="text-xs text-blue-500 mt-0.5">담당 {getAssignedCount(t.id)}명</p>
                     </button>
                     <div className="flex gap-2">
-                      <button onClick={() => setSelectedTrainer(t)} className="text-sm bg-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-200">환자 배정</button>
+                      <button onClick={() => router.push(`/messages/${t.id}`)} className="text-sm bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100">💬</button>
+                      <button onClick={() => setSelectedTrainer(t)} className="text-sm bg-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-200">배정</button>
                       <button onClick={() => handleRemoveTrainer(t)} className="text-sm text-red-500 px-2 py-1.5 hover:bg-red-50 rounded-lg">해제</button>
                     </div>
                   </div>
