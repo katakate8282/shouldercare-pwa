@@ -340,12 +340,9 @@ export default function AdminPage() {
     // 병원 ID 생성
     const hospitalId = hospitalForm.prefix.toUpperCase().toLowerCase() + '_' + Date.now()
 
-    // 비밀번호 해시 (간단 해시 - 프로덕션에서는 bcrypt 사용)
-    const encoder = new TextEncoder()
-    const data = encoder.encode(hospitalForm.admin_password)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    // 비밀번호 해시 (bcrypt)
+    const bcryptHash = await (await import("bcryptjs")).default.hash(hospitalForm.admin_password, 10)
+    // bcrypt hash generated above
 
     const { error } = await supabase.from('hospitals').insert({
       id: hospitalId,
@@ -357,7 +354,7 @@ export default function AdminPage() {
       phone: hospitalForm.phone || null,
       address: hospitalForm.address || null,
       admin_email: hospitalForm.admin_email,
-      admin_password_hash: hashHex,
+      admin_password_hash: bcryptHash,
     })
 
     if (error) {
