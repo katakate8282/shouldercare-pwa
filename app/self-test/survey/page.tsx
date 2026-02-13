@@ -297,7 +297,7 @@ export default function SurveyPage() {
     const finalSurvey = { ...survey, ...finalData }
     sessionStorage.setItem('selftest_survey', JSON.stringify(finalSurvey))
     // Phase 2 미구현 → 임시 완료 페이지
-    router.push('/self-test/complete')
+    router.push('/self-test/measure')
   }
 
   // 자동 넘김 (단일 선택 질문)
