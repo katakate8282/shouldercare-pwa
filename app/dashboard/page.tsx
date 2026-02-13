@@ -15,6 +15,8 @@ interface User {
   email: string
   subscription_type?: string
   subscription_expires_at?: string | null
+  hospital_id?: string
+  hospital_code?: string
   role?: string
 }
 
@@ -95,6 +97,8 @@ export default function DashboardPage() {
   const [trainerWeekActivity, setTrainerWeekActivity] = useState({ prescriptions: 0, messages: 0, notes: 0 })
   const [trainerSelectedPatient, setTrainerSelectedPatient] = useState<TrainerPatient | null>(null)
 
+  // 병원 연결 데이터
+  const [hospitalInfo, setHospitalInfo] = useState<{ hospital_name: string; program_week: number | null; diagnosis: string | null; trainer_name: string | null } | null>(null)
   useEffect(() => {
     fetchAuthMe()
       .then(res => {
@@ -114,7 +118,10 @@ export default function DashboardPage() {
             fetchTrainerNotes(data.user.id)
             fetchTrainerAndUnread(data.user.id)
             fetchRanking(data.user.id)
-          }
+            // 병원 연결 정보 조회
+            fetchWithAuth("/api/auth/link-hospital").then(r => r.json()).then(d => {
+              if (d.linked && d.hospital) setHospitalInfo({ hospital_name: d.hospital.name, program_week: d.patient?.program_week || null, diagnosis: d.patient?.diagnosis || null, trainer_name: d.patient?.trainer_name || null })
+            }).catch(() => {})          }
         } else {
           router.push('/login')
         }
@@ -932,7 +939,24 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-3.5 py-3 space-y-3">
-        {/* ── Stats + Rank + Report Card ── */}
+        {/* 병원 소속 배지 */}
+        {hospitalInfo && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🏥</span>
+              <div>
+                <p className="text-sm font-bold text-blue-900">{hospitalInfo.hospital_name}</p>
+                <p className="text-xs text-blue-600">
+                  {hospitalInfo.program_week ? `${hospitalInfo.program_week}주차 / 12주` : "재활 프로그램"}
+                  {hospitalInfo.diagnosis ? ` · ${hospitalInfo.diagnosis}` : ""}
+                </p>
+              </div>
+            </div>
+            {hospitalInfo.trainer_name && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg">담당: {hospitalInfo.trainer_name}</span>
+            )}
+          </div>
+        )}        {/* ── Stats + Rank + Report Card ── */}
         <div className="rounded-2xl overflow-hidden">
           {/* 상단: 통계 */}
           <div className="p-3.5 pb-3 text-white" style={{ background: 'linear-gradient(135deg, #0369A1 0%, #0284C7 40%, #38BDF8 100%)' }}>
