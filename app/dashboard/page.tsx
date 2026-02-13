@@ -1057,7 +1057,7 @@ export default function DashboardPage() {
 
           {/* AI 분석 결과 */}
           <button
-            onClick={() => router.push('/self-test/result')}
+            onClick={() => router.push('/self-test/history')}
             className="bg-white rounded-xl p-2.5 text-center shadow-sm hover:shadow-md transition"
           >
             <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center mx-auto mb-1">

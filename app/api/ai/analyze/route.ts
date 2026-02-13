@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 const SYSTEM_PROMPT = `너는 어깨 재활 전문 AI 분석가야.
 환자의 통증 설문과 ROM(관절가동범위) 측정 결과를 분석해서 상태를 추정하고 맞춤 운동을 추천해.
@@ -63,7 +69,7 @@ const SYSTEM_PROMPT = `너는 어깨 재활 전문 AI 분석가야.
 
 export async function POST(req: NextRequest) {
   try {
-    const { survey, rom } = await req.json()
+    const { survey, rom, userId } = await req.json()
 
     if (!survey) {
       return NextResponse.json({ error: '설문 데이터가 없습니다' }, { status: 400 })
@@ -123,15 +129,13 @@ ${rom && rom.external_rotation !== null ? `- 외회전: ${rom.external_rotation}
     const data = await response.json()
     const aiText = data.content?.[0]?.text || ''
 
-    // JSON 파싱 시도
+    // JSON 파싱
     let aiResult
     try {
-      // 코드블록 제거
       const cleaned = aiText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
       aiResult = JSON.parse(cleaned)
     } catch (parseErr) {
       console.error('JSON parse error:', parseErr, 'Raw:', aiText)
-      // 파싱 실패 시 텍스트 그대로 반환
       aiResult = {
         estimated_condition: 'AI 분석 완료',
         confidence: 'medium',
@@ -146,7 +150,35 @@ ${rom && rom.external_rotation !== null ? `- 외회전: ${rom.external_rotation}
       }
     }
 
-    return NextResponse.json({ result: aiResult })
+    // DB 저장
+    let savedId = null
+    if (userId) {
+      try {
+        const { data: insertData, error: insertError } = await supabaseAdmin
+          .from('self_test_results')
+          .insert({
+            user_id: userId,
+            survey_data: survey,
+            rom_data: rom || null,
+            ai_result: aiResult,
+            estimated_condition: aiResult.estimated_condition || null,
+            pain_intensity: survey.pain_intensity || null,
+            see_doctor_flag: aiResult.see_doctor_flag || false,
+          })
+          .select('id')
+          .single()
+
+        if (insertError) {
+          console.error('DB insert error:', insertError)
+        } else {
+          savedId = insertData?.id
+        }
+      } catch (dbErr) {
+        console.error('DB save error:', dbErr)
+      }
+    }
+
+    return NextResponse.json({ result: aiResult, savedId })
 
   } catch (error: any) {
     console.error('Analyze API error:', error)

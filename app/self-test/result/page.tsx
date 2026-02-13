@@ -1,7 +1,7 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
 
 interface Exercise {
   name: string
@@ -23,15 +23,37 @@ interface AiResult {
   disclaimer: string
 }
 
-export default function ResultPage() {
+function ResultContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const resultId = searchParams.get('id') // DB에서 불러올 때
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [result, setResult] = useState<AiResult | null>(null)
-  const [surveyData, setSurveyData] = useState<any>(null)
   const [romData, setRomData] = useState<any>(null)
+  const [testDate, setTestDate] = useState<string | null>(null)
 
   useEffect(() => {
+    // 1) DB에서 기존 결과 불러오기 (이력 클릭 시)
+    if (resultId) {
+      fetch(`/api/ai/results?id=${resultId}`)
+        .then(res => {
+          if (!res.ok) throw new Error('결과를 불러올 수 없습니다')
+          return res.json()
+        })
+        .then(data => {
+          if (data.error) throw new Error(data.error)
+          setResult(data.result.ai_result)
+          setRomData(data.result.rom_data)
+          setTestDate(data.result.created_at)
+        })
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false))
+      return
+    }
+
+    // 2) 새로 분석 (설문/ROM 완료 후)
     const survey = sessionStorage.getItem('selftest_survey')
     const rom = sessionStorage.getItem('selftest_rom')
 
@@ -42,15 +64,20 @@ export default function ResultPage() {
 
     const parsedSurvey = JSON.parse(survey)
     const parsedRom = rom ? JSON.parse(rom) : null
-    setSurveyData(parsedSurvey)
     setRomData(parsedRom)
 
-    // AI 분석 요청
-    fetch('/api/ai/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ survey: parsedSurvey, rom: parsedRom }),
-    })
+    // 로그인 사용자 ID 가져오기
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(authData => {
+        const userId = authData.user?.id || null
+
+        return fetch('/api/ai/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ survey: parsedSurvey, rom: parsedRom, userId }),
+        })
+      })
       .then(res => {
         if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
         return res.json()
@@ -58,13 +85,18 @@ export default function ResultPage() {
       .then(data => {
         if (data.error) throw new Error(data.error)
         setResult(data.result)
+        setTestDate(new Date().toISOString())
+
+        // sessionStorage 정리
+        sessionStorage.removeItem('selftest_survey')
+        sessionStorage.removeItem('selftest_rom')
       })
       .catch(err => {
         console.error('AI analyze error:', err)
         setError(err.message || 'AI 분석에 실패했습니다')
       })
       .finally(() => setLoading(false))
-  }, [router])
+  }, [router, resultId])
 
   // 로딩 화면
   if (loading) {
@@ -74,8 +106,12 @@ export default function ResultPage() {
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 relative" style={{ background: 'linear-gradient(135deg, #7C3AED, #A78BFA)' }}>
             <span className="text-4xl animate-pulse">🤖</span>
           </div>
-          <h2 className="text-lg font-bold text-slate-900 mb-2">AI가 분석 중이에요...</h2>
-          <p className="text-sm text-slate-500 mb-6">설문과 측정 결과를 종합하고 있습니다</p>
+          <h2 className="text-lg font-bold text-slate-900 mb-2">
+            {resultId ? '결과를 불러오는 중...' : 'AI가 분석 중이에요...'}
+          </h2>
+          <p className="text-sm text-slate-500 mb-6">
+            {resultId ? '잠시만 기다려주세요' : '설문과 측정 결과를 종합하고 있습니다'}
+          </p>
           <div className="flex justify-center gap-1.5">
             {[0, 1, 2].map(i => (
               <div
@@ -136,16 +172,23 @@ export default function ResultPage() {
       {/* Header */}
       <header style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #A78BFA 50%, #C4B5FD 100%)' }}>
         <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
-          <button onClick={() => router.push('/dashboard')} className="text-white/80">
+          <button onClick={() => router.push('/self-test/history')} className="text-white/80">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <h1 className="text-base font-bold text-white">AI 분석 결과</h1>
           <div className="w-6" />
         </div>
+        {testDate && (
+          <div className="max-w-lg mx-auto px-4 pb-3">
+            <p className="text-xs text-white/60 text-center">
+              {new Date(testDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })} 분석
+            </p>
+          </div>
+        )}
       </header>
 
       <main className="max-w-lg mx-auto px-4 -mt-2 space-y-3">
-        {/* 전문의 상담 권고 (위험 신호) */}
+        {/* 전문의 상담 권고 */}
         {result.see_doctor_flag && (
           <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
             <div className="flex items-start gap-3">
@@ -178,7 +221,7 @@ export default function ResultPage() {
           </p>
         </div>
 
-        {/* ROM 결과 요약 (측정했을 경우) */}
+        {/* ROM 결과 요약 */}
         {romData && (romData.flexion !== null || romData.abduction !== null || romData.external_rotation !== null) && (
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
@@ -284,5 +327,17 @@ export default function ResultPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <ResultContent />
+    </Suspense>
   )
 }
