@@ -278,8 +278,8 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <div className="text-center mb-8">
-              <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-4xl">🏥</span>
+              <div className="w-20 h-20 bg-[#0284C7] rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 4a3 3 0 00-3 3v4a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M6 4a3 3 0 00-3 3v4a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M12 18v-6"/><path d="M6 11c0 4 2.5 6 6 6s6-2 6-6"/></svg>
               </div>
               <h1 className="text-3xl font-bold text-gray-800 mb-2">어깨케어</h1>
               <p className="text-gray-600">AI 기반 어깨 재활 전문 플랫폼</p>
@@ -305,7 +305,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => { setView('email-login'); setError(null) }}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition"
+                className="w-full bg-[#0284C7] hover:bg-[#0369A1] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition"
               >
                 <span className="text-2xl">✉️</span>
                 이메일로 계속하기
@@ -324,15 +324,15 @@ export default function LoginPage() {
               계속 진행하시면 다음에 동의하는 것으로 간주됩니다
             </p>
             <div className="flex justify-center gap-4 mt-2">
-              <a href="#" className="text-sm text-blue-600 hover:underline">이용약관</a>
-              <a href="#" className="text-sm text-blue-600 hover:underline">개인정보처리방침</a>
+              <a href="#" className="text-sm text-[#0284C7] hover:underline">이용약관</a>
+              <a href="#" className="text-sm text-[#0284C7] hover:underline">개인정보처리방침</a>
             </div>
 
             <div className="mt-8 pt-6 border-t border-gray-200 text-center">
               <p className="text-gray-500 text-sm mb-2">아직 계정이 없으신가요?</p>
               <button
                 onClick={() => { setView('email-signup'); setError(null) }}
-                className="text-blue-600 font-semibold hover:underline text-base"
+                className="text-[#0284C7] font-semibold hover:underline text-base"
               >
                 회원가입하기
               </button>
