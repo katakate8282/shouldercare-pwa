@@ -1,5 +1,6 @@
 'use client'
 
+import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -40,7 +41,7 @@ export default function MessagePage() {
   }
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetchAuthMe()
       .then(res => {
         if (!res.ok) throw new Error('Not authenticated')
         return res.json()

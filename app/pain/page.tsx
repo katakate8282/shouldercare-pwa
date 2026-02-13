@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 
@@ -21,7 +22,7 @@ export default function PainLogPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetchAuthMe()
       .then(res => {
         if (!res.ok) throw new Error('Not authenticated')
         return res.json()

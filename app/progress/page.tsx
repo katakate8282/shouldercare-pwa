@@ -1,5 +1,6 @@
 'use client'
 
+import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -20,7 +21,7 @@ export default function ProgressPage() {
   const [tab, setTab] = useState<'all' | 'pain' | 'exercise'>('all')
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetchAuthMe()
       .then(res => {
         if (!res.ok) throw new Error('Not authenticated')
         return res.json()

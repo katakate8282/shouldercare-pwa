@@ -1,5 +1,6 @@
 'use client'
 
+import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter, useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { mockExercises } from "@/lib/data/exercises"
@@ -50,7 +51,7 @@ export default function WorkoutPage() {
   }
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetchAuthMe()
       .then(res => {
         if (!res.ok) throw new Error('Not authenticated')
         return res.json()
