@@ -86,6 +86,8 @@ export default function LoginPage() {
             }
           })
           .catch(() => {})
+      } else {
+        // 토큰 없거나 무효 - 로그인 화면 유지
       }
     })
   }, [])

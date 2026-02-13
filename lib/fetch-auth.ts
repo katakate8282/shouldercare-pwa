@@ -1,4 +1,4 @@
-import { getToken } from '@/lib/token-storage'
+import { getToken, removeToken } from '@/lib/token-storage'
 
 export async function fetchWithAuth(url: string, options?: RequestInit): Promise<Response> {
   const token = await getToken()
@@ -14,5 +14,12 @@ export async function fetchWithAuth(url: string, options?: RequestInit): Promise
 }
 
 export async function fetchAuthMe(): Promise<Response> {
-  return fetchWithAuth('/api/auth/me')
+  const res = await fetchWithAuth('/api/auth/me')
+
+  // 인증 실패 시 무효 토큰 자동 삭제 (루프 방지)
+  if (!res.ok) {
+    await removeToken()
+  }
+
+  return res
 }

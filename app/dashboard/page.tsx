@@ -1,6 +1,7 @@
 'use client'
 
 import { fetchAuthMe } from '@/lib/fetch-auth'
+import { removeToken } from '@/lib/token-storage'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -448,6 +449,7 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
+      await removeToken()
     router.push('/login')
   }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { fetchAuthMe } from '@/lib/fetch-auth'
+import { removeToken } from '@/lib/token-storage'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -36,6 +37,7 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     if (confirm('로그아웃 하시겠습니까?')) {
       await fetch('/api/auth/logout', { method: 'POST' })
+      await removeToken()
       router.push('/login')
     }
   }
