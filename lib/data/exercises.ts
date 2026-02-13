@@ -186,3 +186,28 @@ export function getCategoryDisplayName(category: string): string {
 
 // 하위 호환용 (기존 mockExercises 참조하는 코드 대응)
 export const mockExercises: Exercise[] = []
+
+
+// Signed URL 발급 (Private 버킷용)
+export async function getSignedVideoUrl(videoFilename: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/storage?path=${encodeURIComponent(videoFilename)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.url || null
+  } catch {
+    return null
+  }
+}
+
+export async function getSignedThumbnailUrl(videoFilename: string): Promise<string | null> {
+  const thumbFilename = `thumbnails/${videoFilename.replace('.mp4', '.jpg')}`
+  try {
+    const res = await fetch(`/api/storage?path=${encodeURIComponent(thumbFilename)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.url || null
+  } catch {
+    return null
+  }
+}
