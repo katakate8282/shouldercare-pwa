@@ -141,6 +141,15 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/",
+        destination: "/login",
+        permanent: false,
+      },
+    ]
+  },
   reactStrictMode: true,
   swcMinify: true,
   images: {
