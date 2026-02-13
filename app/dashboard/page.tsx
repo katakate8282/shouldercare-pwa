@@ -99,7 +99,9 @@ export default function DashboardPage() {
 
   // 병원 연결 데이터
   const [hospitalInfo, setHospitalInfo] = useState<{ hospital_name: string; program_week: number | null; diagnosis: string | null; trainer_name: string | null } | null>(null)
-  const [showProgramComplete, setShowProgramComplete] = useState(false)  useEffect(() => {
+  const [showProgramComplete, setShowProgramComplete] = useState(false)
+
+  useEffect(() => {
     fetchAuthMe()
       .then(res => {
         if (!res.ok) throw new Error('Not authenticated')
