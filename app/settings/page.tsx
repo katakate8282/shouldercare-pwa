@@ -77,13 +77,13 @@ export default function SettingsPage() {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="font-semibold text-gray-900 mb-4">프로필</h2>
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-[#E0F2FE] rounded-full flex items-center justify-center">
               <span className="text-3xl">👤</span>
             </div>
             <div className="flex-1">
               <p className="font-semibold text-gray-900">{user.name}</p>
               <p className="text-sm text-gray-500">{user.email}</p>
-              <p className="text-xs text-blue-600 mt-1">{subscriptionLabel}</p>
+              <p className="text-xs text-[#0284C7] mt-1">{subscriptionLabel}</p>
             </div>
           </div>
         </div>

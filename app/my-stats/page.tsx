@@ -302,7 +302,7 @@ export default function MyStatsPage() {
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
 
         {/* 레벨 + 스트릭 */}
-        <div className="bg-gradient-to-r from-purple-500 to-blue-500 rounded-xl p-4 text-white">
+        <div className="bg-gradient-to-r from-[#0369A1] to-[#0284C7] rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm opacity-80">Lv.{level.level}</p>
@@ -332,7 +332,7 @@ export default function MyStatsPage() {
           <h2 className="font-semibold text-gray-900 mb-3">📊 이번 주 리포트</h2>
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600">{weekExercises}</p>
+              <p className="text-2xl font-bold text-[#0284C7]">{weekExercises}</p>
               <p className="text-xs text-gray-500">운동 횟수</p>
             </div>
             <div className="text-center">
@@ -394,7 +394,7 @@ export default function MyStatsPage() {
           ) : (
             <>
               {/* 내 순위 하이라이트 */}
-              <div className="bg-blue-50 rounded-lg p-3 mb-3 flex items-center justify-between">
+              <div className="bg-[#E0F2FE] rounded-lg p-3 mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xl">{rankEmoji}</span>
                   <div>
@@ -403,7 +403,7 @@ export default function MyStatsPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-blue-600">{weekExercises}회</p>
+                  <p className="font-bold text-[#0284C7]">{weekExercises}회</p>
                   <p className="text-xs text-gray-500">이번 주</p>
                 </div>
               </div>
@@ -417,12 +417,12 @@ export default function MyStatsPage() {
                     <div
                       key={item.userId}
                       className={`flex items-center justify-between py-2 px-3 rounded-lg ${
-                        isMe ? 'bg-blue-50 border border-blue-200' : ''
+                        isMe ? 'bg-[#E0F2FE] border border-[#0284C7]/30' : ''
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-bold w-6 text-center">{emoji}</span>
-                        <p className={`text-sm ${isMe ? 'font-bold text-blue-700' : 'text-gray-700'}`}>
+                        <p className={`text-sm ${isMe ? 'font-bold text-[#0284C7]' : 'text-gray-700'}`}>
                           {item.name} {isMe && '(나)'}
                         </p>
                       </div>

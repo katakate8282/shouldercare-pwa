@@ -193,7 +193,7 @@ export default function ProgressPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-lg shadow-sm p-4">
             <p className="text-xs text-gray-500 mb-1">이번 주 운동</p>
-            <p className="text-2xl font-bold text-blue-600">{thisWeekExercise}회</p>
+            <p className="text-2xl font-bold text-[#0284C7]">{thisWeekExercise}회</p>
             <p className="text-xs text-gray-400">총 {totalExerciseLogs}회</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4">
@@ -249,7 +249,7 @@ export default function ProgressPage() {
                     )}
                     <div
                       className={`w-full rounded-t transition-all duration-500 ${
-                        count === 0 ? 'bg-gray-100' : 'bg-blue-400'
+                        count === 0 ? 'bg-gray-100' : 'bg-[#0284C7]'
                       }`}
                       style={{ height: `${Math.max(percentage, count > 0 ? 15 : 2)}%` }}
                     />
@@ -277,7 +277,7 @@ export default function ProgressPage() {
                 onClick={() => setTab(t.key)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
                   tab === t.key
-                    ? 'bg-blue-500 text-white'
+                    ? 'bg-[#0284C7] text-white'
                     : 'bg-gray-100 text-gray-600'
                 }`}
               >
@@ -294,7 +294,7 @@ export default function ProgressPage() {
                 <div
                   key={index}
                   className={`border-l-4 pl-4 py-2 ${
-                    activity.type === 'exercise' ? 'border-blue-500' : 'border-orange-400'
+                    activity.type === 'exercise' ? 'border-[#0284C7]' : 'border-orange-400'
                   }`}
                 >
                   <div className="flex justify-between items-start mb-1">

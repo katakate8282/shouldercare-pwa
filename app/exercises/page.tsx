@@ -89,7 +89,7 @@ export default function ExercisesPage() {
               onClick={() => setSelectedCategory('all')}
               className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
                 selectedCategory === 'all'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-[#0284C7] text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -101,7 +101,7 @@ export default function ExercisesPage() {
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
                   selectedCategory === cat
-                    ? 'bg-blue-500 text-white'
+                    ? 'bg-[#0284C7] text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
