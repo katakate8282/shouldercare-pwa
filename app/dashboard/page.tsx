@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import { checkSubscription, getSubscriptionLabel } from '@/lib/subscription'
 import { usePushNotification } from '@/hooks/usePushNotification'
 
 interface User {
@@ -13,6 +14,7 @@ interface User {
   name: string
   email: string
   subscription_type?: string
+  subscription_expires_at?: string | null
   role?: string
 }
 
@@ -501,10 +503,8 @@ export default function DashboardPage() {
 
   if (!user) return null
 
-  const subscriptionLabel =
-    user.subscription_type === 'PREMIUM' ? '프리미엄 회원' :
-    user.subscription_type === 'PLATINUM_PATIENT' ? '플래티넘 환자' :
-    user.subscription_type === 'TRIAL' ? '무료 체험' : '일반 회원'
+  const subStatus = checkSubscription(user as any)
+  const subscriptionLabel = getSubscriptionLabel(subStatus)
 
   // ===== 관리자 대시보드 =====
   if (user.role === 'admin') {

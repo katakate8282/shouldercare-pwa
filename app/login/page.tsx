@@ -203,8 +203,48 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
-    setError('병원 코드 기능은 준비 중입니다. 카카오 로그인 후 병원 코드를 입력해주세요.')
-    setIsLoading(false)
+
+    try {
+      // 병원코드 검증
+      const res = await fetch('/api/auth/verify-hospital', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: hospitalCode }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || '코드 확인에 실패했습니다.')
+        setIsLoading(false)
+        return
+      }
+
+      // 검증 성공 → state에 병원정보 담아서 카카오 로그인
+      const state = JSON.stringify({
+        hospitalId: data.hospitalId,
+        phoneDigits: data.phoneDigits,
+      })
+
+      if (isKakaoInAppBrowser()) {
+        const ua = navigator.userAgent.toLowerCase()
+        const targetUrl = window.location.origin + '/api/auth/kakao?state=' + encodeURIComponent(state)
+        if (/android/i.test(ua)) {
+          window.location.href = 'intent://' + targetUrl.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end'
+          return
+        }
+        window.location.href = targetUrl
+        setTimeout(() => {
+          setIsLoading(false)
+          setError('카카오톡 내에서 로그인이 제한될 수 있습니다. 우측 상단 메뉴(⋮)에서 "다른 브라우저로 열기"를 선택해주세요.')
+        }, 2000)
+        return
+      }
+
+      window.location.href = '/api/auth/kakao?state=' + encodeURIComponent(state)
+    } catch (err) {
+      setError('네트워크 오류가 발생했습니다.')
+      setIsLoading(false)
+    }
   }
 
   // 카카오 인앱 브라우저에서 외부 브라우저로 유도하는 배너
@@ -356,7 +396,7 @@ export default function LoginPage() {
   // ===== 이메일 로그인 =====
   if (view === 'email-login') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#0284C7] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <button onClick={() => { setView('main'); setError(null) }} className="text-gray-500 hover:text-gray-700 mb-4">
@@ -395,7 +435,7 @@ export default function LoginPage() {
   // ===== 이메일 회원가입 =====
   if (view === 'email-signup') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#0284C7] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <button onClick={() => { setView('main'); setError(null) }} className="text-gray-500 hover:text-gray-700 mb-4">
@@ -436,7 +476,7 @@ export default function LoginPage() {
   // ===== 병원 코드 입력 =====
   if (view === 'hospital-code') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#0284C7] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <button onClick={() => { setView('main'); setError(null) }} className="text-gray-500 hover:text-gray-700 mb-4">
@@ -456,7 +496,7 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleHospitalCode} className="space-y-4">
-              <input type="text" placeholder="PLT-2024-XXXX" value={hospitalCode}
+              <input type="text" placeholder="PLT-67967963" value={hospitalCode}
                 onChange={(e) => setHospitalCode(e.target.value.toUpperCase())} required
                 className="w-full px-4 py-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg font-mono tracking-wider" />
               <button type="submit" disabled={isLoading || !hospitalCode}

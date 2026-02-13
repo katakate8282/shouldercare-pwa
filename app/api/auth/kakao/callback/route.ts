@@ -6,7 +6,7 @@ function generateToken(userId: string, email: string): string {
   const payload = {
     userId,
     email,
-    exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30일
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
     iat: Date.now(),
   }
   const secret = process.env.TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'shouldercare-secret'
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const code = searchParams.get('code')
+    const state = searchParams.get('state') // 병원코드 정보가 여기에 담김
 
     if (!code) return NextResponse.redirect(new URL('/login?error=no_code', request.url))
 
@@ -30,6 +31,14 @@ export async function GET(request: NextRequest) {
 
     if (!kakaoClientId || !redirectUri || !supabaseUrl || !supabaseServiceKey) {
       return NextResponse.redirect(new URL('/login?error=config_error', request.url))
+    }
+
+    // state에서 병원코드 정보 파싱
+    let hospitalInfo: { hospitalId: string; phoneDigits: string } | null = null
+    if (state) {
+      try {
+        hospitalInfo = JSON.parse(decodeURIComponent(state))
+      } catch {}
     }
 
     // 카카오 토큰 교환
@@ -69,7 +78,7 @@ export async function GET(request: NextRequest) {
 
     const { data: existingUser } = await supabase
       .from('users')
-      .select('id, onboarding_completed')
+      .select('id, onboarding_completed, subscription_type')
       .eq('email', email)
       .single()
 
@@ -80,23 +89,49 @@ export async function GET(request: NextRequest) {
       userId = existingUser.id
       onboardingDone = existingUser.onboarding_completed === true
 
+      // 병원코드로 로그인한 경우 구독 업그레이드 (이미 유료가 아닐 때만)
+      const updateData: Record<string, any> = {
+        name,
+        updated_at: new Date().toISOString(),
+      }
+
+      if (hospitalInfo && (!existingUser.subscription_type || existingUser.subscription_type === 'FREE')) {
+        const expiresAt = new Date()
+        expiresAt.setDate(expiresAt.getDate() + 84) // 12주 = 84일
+        updateData.subscription_type = 'PLATINUM_PATIENT'
+        updateData.subscription_expires_at = expiresAt.toISOString()
+        updateData.hospital_id = hospitalInfo.hospitalId
+        updateData.hospital_code = `${hospitalInfo.hospitalId}-${hospitalInfo.phoneDigits}`
+      }
+
       await supabase
         .from('users')
-        .update({
-          name,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', existingUser.id)
     } else {
+      // 신규 유저 생성
+      const insertData: Record<string, any> = {
+        email,
+        name,
+        onboarding_completed: false,
+        subscription_type: 'FREE',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      // 병원코드로 가입한 경우
+      if (hospitalInfo) {
+        const expiresAt = new Date()
+        expiresAt.setDate(expiresAt.getDate() + 84)
+        insertData.subscription_type = 'PLATINUM_PATIENT'
+        insertData.subscription_expires_at = expiresAt.toISOString()
+        insertData.hospital_id = hospitalInfo.hospitalId
+        insertData.hospital_code = `${hospitalInfo.hospitalId}-${hospitalInfo.phoneDigits}`
+      }
+
       const { data: newUser, error: insertError } = await supabase
         .from('users')
-        .insert({
-          email,
-          name,
-          onboarding_completed: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .insert(insertData)
         .select('id')
         .single()
 
@@ -109,18 +144,16 @@ export async function GET(request: NextRequest) {
       onboardingDone = false
     }
 
-    // JWT-like 토큰 생성
+    // 토큰 생성
     const token = generateToken(userId, email)
     const redirectPath = onboardingDone ? '/dashboard' : '/onboarding'
 
-    // 토큰을 login 페이지로 전달 → 클라이언트에서 localStorage에 저장 후 리다이렉트
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('token', token)
     loginUrl.searchParams.set('redirect', redirectPath)
 
     const response = NextResponse.redirect(loginUrl)
 
-    // 쿠키도 동시에 설정 (standalone PWA 백업용)
     response.cookies.set('session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
