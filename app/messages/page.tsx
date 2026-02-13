@@ -4,6 +4,7 @@ import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import BottomNav from '@/components/BottomNav'
 
 interface User {
   id: string
@@ -176,7 +177,7 @@ export default function MessagesListPage() {
   const isTrainer = user.role === 'trainer'
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-24">
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
           <button
@@ -240,6 +241,8 @@ export default function MessagesListPage() {
           </div>
         )}
       </main>
+
+      <BottomNav role={user.role || "patient"} />
     </div>
   )
 }
