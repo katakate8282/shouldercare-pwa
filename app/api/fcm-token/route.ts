@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import jwt from 'jsonwebtoken'
+
+export const dynamic = 'force-dynamic'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
+    const jwt = require('jsonwebtoken')
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
     const userId = decoded.userId
 
@@ -26,7 +28,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'fcmToken required' }, { status: 400 })
     }
 
-    // upsert: 같은 유저+토큰이면 updated_at만 갱신
     const { error } = await supabase
       .from('fcm_tokens')
       .upsert(
