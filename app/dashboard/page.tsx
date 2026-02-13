@@ -99,7 +99,7 @@ export default function DashboardPage() {
 
   // 병원 연결 데이터
   const [hospitalInfo, setHospitalInfo] = useState<{ hospital_name: string; program_week: number | null; diagnosis: string | null; trainer_name: string | null } | null>(null)
-  useEffect(() => {
+  const [showProgramComplete, setShowProgramComplete] = useState(false)  useEffect(() => {
     fetchAuthMe()
       .then(res => {
         if (!res.ok) throw new Error('Not authenticated')
@@ -122,7 +122,12 @@ export default function DashboardPage() {
             fetchWithAuth("/api/auth/link-hospital").then(r => r.json()).then(d => {
               if (d.linked && d.hospital) setHospitalInfo({ hospital_name: d.hospital.name, program_week: d.patient?.program_week || null, diagnosis: d.patient?.diagnosis || null, trainer_name: d.patient?.trainer_name || null })
             }).catch(() => {})          }
-        } else {
+            // 12주 프로그램 종료 감지
+            const sub = checkSubscription(data.user)
+            if (sub.isExpired && sub.type === "PLATINUM_PATIENT") {
+              const dismissed = localStorage.getItem("sc_program_complete_dismissed")
+              if (!dismissed) setShowProgramComplete(true)
+            }        } else {
           router.push('/login')
         }
       })
@@ -851,6 +856,44 @@ export default function DashboardPage() {
   // ===== 환자 대시보드 =====
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
+      {/* 12주 프로그램 종료 팝업 */}
+      {showProgramComplete && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="text-5xl mb-3">🎉</div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">12주 재활 프로그램 완료!</h3>
+              <p className="text-sm text-gray-500 mb-4">축하합니다! 병원 재활 프로그램을 모두 마쳤어요.</p>
+              <div className="bg-blue-50 rounded-xl p-4 mb-4 text-left">
+                <p className="text-sm font-bold text-blue-900 mb-2">📊 프로그램 요약</p>
+                <div className="text-xs text-blue-700 space-y-1">
+                  <p>✅ 12주 프로그램 완료</p>
+                  <p>🏋️ 이번 주 운동 {weekExercises}회 수행</p>
+                  {painChange && painChange.latest < painChange.first && (
+                    <p>📉 통증 {painChange.first} → {painChange.latest} 감소</p>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mb-4">지속적인 관리로 더 나은 결과를 만들어보세요!</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setShowProgramComplete(false); router.push("/subscribe") }}
+                  className="w-full py-3 rounded-xl text-white font-bold text-sm"
+                  style={{ background: "linear-gradient(135deg, #0369A1, #0EA5E9)" }}
+                >
+                  개인 구독으로 계속하기 (₩9,900/월)
+                </button>
+                <button
+                  onClick={() => { setShowProgramComplete(false); localStorage.setItem("sc_program_complete_dismissed", "true") }}
+                  className="w-full py-3 rounded-xl text-gray-500 font-medium text-sm hover:bg-gray-50"
+                >
+                  무료로 계속 이용하기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 면책 조항 팝업 */}
       {showDisclaimer && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
