@@ -698,8 +698,8 @@ export default function DashboardPage() {
                   userExMap[act.userId].exercises.push(act.detail)
                   userExMap[act.userId].count++
                 } else if (act.type === 'pain') {
-                  const level = parseInt(act.detail.replace(/[^0-9]/g, ''))
-                  if (!isNaN(level)) userPainMap[act.userId] = level
+                  const match = act.detail.match(/통증\s*(\d+)/)
+                  if (match) userPainMap[act.userId] = parseInt(match[1])
                 }
               })
 
