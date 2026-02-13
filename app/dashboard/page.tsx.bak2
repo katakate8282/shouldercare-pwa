@@ -71,10 +71,6 @@ export default function DashboardPage() {
   const [achievementRate, setAchievementRate] = useState(0)
   const [painChange, setPainChange] = useState<{ first: number; latest: number } | null>(null)
 
-  // 순위 state
-  const [myRank, setMyRank] = useState(0)
-  const [totalRankers, setTotalRankers] = useState(0)
-
   // 관리자용 state
   const [totalPatients, setTotalPatients] = useState(0)
   const [totalTrainers, setTotalTrainers] = useState(0)
@@ -106,7 +102,6 @@ export default function DashboardPage() {
             fetchPrescriptions(data.user.id)
             fetchTrainerNotes(data.user.id)
             fetchTrainerAndUnread(data.user.id)
-            fetchRanking(data.user.id)
           }
         } else {
           router.push('/login')
@@ -382,48 +377,6 @@ export default function DashboardPage() {
     if (data) setTrainerNotes(data)
   }
 
-  const fetchRanking = async (userId: string) => {
-    try {
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-
-      const { data: patients } = await supabase
-        .from('users')
-        .select('id, name')
-        .eq('role', 'patient')
-
-      if (!patients) return
-
-      const { data: allLogs } = await supabase
-        .from('exercise_logs')
-        .select('user_id')
-        .gte('completed_at', weekAgo.toISOString())
-
-      const { data: allPrescriptions } = await supabase
-        .from('prescriptions')
-        .select('patient_id, frequency_per_week')
-        .eq('status', 'active')
-
-      const rankList = patients.map((p: { id: string; name: string }) => {
-        const exercises = (allLogs || []).filter((l: { user_id: string }) => l.user_id === p.id).length
-        const pres = (allPrescriptions || []).filter((rx: { patient_id: string }) => rx.patient_id === p.id)
-        const target = pres.reduce((sum: number, rx: { frequency_per_week: number }) => sum + (rx.frequency_per_week || 0), 0)
-        const rate = target > 0 ? Math.min(Math.round((exercises / target) * 100), 100) : (exercises > 0 ? 100 : 0)
-        return { userId: p.id, weekExercises: exercises, achievementRate: rate }
-      })
-
-      rankList.sort((a: { achievementRate: number; weekExercises: number }, b: { achievementRate: number; weekExercises: number }) => {
-        if (b.achievementRate !== a.achievementRate) return b.achievementRate - a.achievementRate
-        return b.weekExercises - a.weekExercises
-      })
-
-      setTotalRankers(rankList.length)
-      const myIdx = rankList.findIndex((r: { userId: string }) => r.userId === userId)
-      setMyRank(myIdx + 1)
-    } catch (error) {
-      console.error('Ranking fetch error:', error)
-    }
-  }
   const fetchTrainerAndUnread = async (userId: string) => {
     try {
       let tId: string | null = null
@@ -896,72 +849,54 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-3.5 py-3 space-y-3">
-        {/* ── Stats + Rank + Report Card ── */}
-        <div className="rounded-2xl overflow-hidden">
-          {/* 상단: 통계 */}
-          <div className="p-3.5 pb-3 text-white" style={{ background: 'linear-gradient(135deg, #0369A1 0%, #0284C7 40%, #38BDF8 100%)' }}>
-            {/* 운동/달성률/통증 3열 */}
-            <div className="grid grid-cols-3 gap-2 mb-2.5">
-              <div className="bg-white/[0.12] backdrop-blur-sm rounded-lg py-2 text-center">
-                <p className="text-xl font-extrabold" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>{weekExercises}<span className="text-[10px] font-medium opacity-80">회</span></p>
-                <p className="text-[9px] opacity-70">운동 횟수</p>
+        {/* ── Level + Streak Card (간소화 → 클릭 시 내 기록) ── */}
+        <button
+          onClick={() => router.push('/my-stats')}
+          className="w-full text-left rounded-2xl p-3.5 text-white"
+          style={{ background: 'linear-gradient(135deg, #0369A1 0%, #0284C7 40%, #38BDF8 100%)' }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-semibold text-white/80">이번 주 리포트</p>
+              <p className="text-lg font-extrabold mt-0.5" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
+                {weekPrescribedCount > 0
+                  ? (achievementRate >= 100 ? '🎉 목표 달성!' : `달성률 ${achievementRate}%`)
+                  : `운동 ${weekExercises}회`
+                }
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-center">
+                <p className="text-xl font-extrabold" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>{weekExercises}<span className="text-xs font-medium">회</span></p>
+                <p className="text-[9px] text-white/70">운동</p>
               </div>
-              <div className="bg-white/[0.12] backdrop-blur-sm rounded-lg py-2 text-center">
-                <p className="text-xl font-extrabold" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
-                  {weekPrescribedCount > 0 ? `${achievementRate}` : '-'}<span className="text-[10px] font-medium opacity-80">{weekPrescribedCount > 0 ? '%' : ''}</span>
-                </p>
-                <p className="text-[9px] opacity-70">목표 달성률</p>
-              </div>
-              <div className="bg-white/[0.12] backdrop-blur-sm rounded-lg py-2 text-center">
-                <p className="text-xl font-extrabold" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
-                  {painChange
-                    ? (painChange.latest < painChange.first
-                        ? `↓${painChange.first - painChange.latest}`
-                        : painChange.latest > painChange.first
-                          ? `↑${painChange.latest - painChange.first}`
-                          : '→0')
-                    : '-'}
-                </p>
-                <p className="text-[9px] opacity-70">통증 변화</p>
+              {painChange && (
+                <div className="text-center">
+                  <p className="text-xl font-extrabold" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
+                    {painChange.latest < painChange.first
+                      ? `↓${painChange.first - painChange.latest}`
+                      : painChange.latest > painChange.first
+                        ? `↑${painChange.latest - painChange.first}`
+                        : '→0'}
+                  </p>
+                  <p className="text-[9px] text-white/70">통증</p>
+                </div>
+              )}
+              <div className="bg-white/25 rounded-md px-2 py-1 flex items-center gap-1 backdrop-blur-sm">
+                <span className="text-[9px] font-semibold">리포트</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </div>
             </div>
-
-            {/* 프로그레스 바 */}
-            {weekPrescribedCount > 0 && (
-              <div className="flex items-center gap-2 mb-2.5">
-                <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
-                  <div className="h-full bg-white/80 rounded-full transition-all" style={{ width: `${Math.min(achievementRate, 100)}%` }} />
-                </div>
-                <span className="text-[9px] opacity-70 whitespace-nowrap">{weekExercises}/{weekPrescribedCount}회</span>
-              </div>
-            )}
-
-            {/* 순위 인라인 */}
-            {myRank > 0 && (
-              <div className="bg-white/[0.12] backdrop-blur-sm rounded-lg px-3 py-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏅'}</span>
-                  <div>
-                    <p className="text-[13px] font-bold">이번 주 <span style={{ color: '#FDE68A' }}>{myRank}위</span></p>
-                    <p className="text-[9px] opacity-70">전체 {totalRankers}명 중</p>
-                  </div>
-                </div>
-                <p className="text-sm font-extrabold" style={{ color: '#FDE68A' }}>{weekExercises}회</p>
-              </div>
-            )}
           </div>
-
-          {/* 하단: 리포트 버튼 */}
-          <button
-            onClick={() => router.push('/my-stats')}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 text-white hover:brightness-110 transition"
-            style={{ background: '#0369A1' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            <span className="text-xs font-bold">내 기록 · 리포트 · 순위 상세보기</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
+          {weekPrescribedCount > 0 && (
+            <div className="mt-2.5 flex items-center gap-2">
+              <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
+                <div className="h-full bg-white/80 rounded-full" style={{ width: `${Math.min(achievementRate, 100)}%` }} />
+              </div>
+              <span className="text-[9px] text-white/70">{weekExercises}/{weekPrescribedCount}회</span>
+            </div>
+          )}
+        </button>
 
         {/* ── Quick Actions (3열) ── */}
         <div className="grid grid-cols-3 gap-2">
