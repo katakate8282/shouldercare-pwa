@@ -1055,16 +1055,16 @@ export default function DashboardPage() {
             <p className="text-[9px] text-slate-400">오늘</p>
           </button>
 
-          {/* 운동 보기 */}
+          {/* AI 분석 결과 */}
           <button
-            onClick={() => router.push('/exercises')}
+            onClick={() => router.push('/self-test/result')}
             className="bg-white rounded-xl p-2.5 text-center shadow-sm hover:shadow-md transition"
           >
-            <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center mx-auto mb-1">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5h11M6.5 17.5h11M2 12h2M20 12h2M4 8v8M20 8v8M7 5v14M17 5v14"/></svg>
+            <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center mx-auto mb-1">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 17H7A5 5 0 017 7h2"/><path d="M15 7h2a5 5 0 010 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
             </div>
-            <p className="text-[11px] font-semibold text-slate-800">운동 보기</p>
-            <p className="text-[9px] text-slate-400">라이브러리</p>
+            <p className="text-[11px] font-semibold text-slate-800">AI 분석결과</p>
+            <p className="text-[9px] text-slate-400">최근 결과</p>
           </button>
         </div>
 

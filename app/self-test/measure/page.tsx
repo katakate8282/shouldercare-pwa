@@ -178,6 +178,7 @@ export default function MeasurePage() {
   const [poseLoaded, setPoseLoaded] = useState(false)
   const [surveyData, setSurveyData] = useState<any>(null)
   const [showGuideOverlay, setShowGuideOverlay] = useState(false)
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment')
 
   const maxAngleRef = useRef(0)
   const holdStartRef = useRef<number | null>(null)
@@ -235,7 +236,7 @@ export default function MeasurePage() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 } }
       })
       streamRef.current = stream
       videoRef.current.srcObject = stream
@@ -266,15 +267,19 @@ export default function MeasurePage() {
         ctx.save()
         ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
 
-        ctx.translate(canvasRef.current.width, 0)
-        ctx.scale(-1, 1)
+        if (facingMode === 'user') {
+          ctx.translate(canvasRef.current.width, 0)
+          ctx.scale(-1, 1)
+        }
         ctx.drawImage(results.image, 0, 0, canvasRef.current.width, canvasRef.current.height)
         ctx.restore()
 
         if (window.drawConnectors && window.POSE_CONNECTIONS) {
           ctx.save()
-          ctx.translate(canvasRef.current.width, 0)
-          ctx.scale(-1, 1)
+          if (facingMode === 'user') {
+            ctx.translate(canvasRef.current.width, 0)
+            ctx.scale(-1, 1)
+          }
           window.drawConnectors(ctx, results.poseLandmarks, window.POSE_CONNECTIONS, { color: '#0EA5E9', lineWidth: 2 })
           window.drawLandmarks(ctx, results.poseLandmarks, { color: '#0284C7', lineWidth: 1, radius: 3 })
           ctx.restore()
@@ -350,6 +355,12 @@ export default function MeasurePage() {
     setCameraReady(false)
   }, [])
 
+  // 카메라 전환
+  const toggleCamera = useCallback(() => {
+    stopCamera()
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user')
+  }, [stopCamera])
+
   // 다음 측정 단계 (가이드 먼저 보여주기)
   const nextMeasureStep = () => {
     maxAngleRef.current = 0
@@ -382,7 +393,7 @@ export default function MeasurePage() {
     return () => {
       if (measureStep === 'done') stopCamera()
     }
-  }, [measureStep, poseLoaded, startCamera, stopCamera])
+  }, [measureStep, poseLoaded, facingMode, startCamera, stopCamera])
 
   const goToResult = () => {
     sessionStorage.setItem('selftest_rom', JSON.stringify(rom))
@@ -444,8 +455,9 @@ export default function MeasurePage() {
           </div>
 
           <div className="bg-amber-50 rounded-xl p-3.5 mb-6">
-            <p className="text-xs text-amber-800">
-              <span className="font-semibold">💡 팁:</span> 전신이 카메라에 보이도록 1~2m 거리에서 촬영해주세요. 밝은 곳에서 측정하면 더 정확합니다.
+            <p className="text-xs text-amber-800 leading-relaxed">
+              <span className="font-semibold">💡 팁:</span> 전신이 카메라에 보이도록 1~2m 거리에서 촬영해주세요.<br/>
+              다른 사람이 찍어줄 수 있다면 <span className="font-semibold">후면 카메라</span>로 전환하세요. 측정 중 우상단 📷 버튼으로 전환할 수 있어요.
             </p>
           </div>
 
@@ -594,9 +606,18 @@ export default function MeasurePage() {
             {measureStep === 'flexion' ? '1' : measureStep === 'abduction' ? '2' : '3'}/3
           </p>
         </div>
-        <button onClick={() => setShowGuideOverlay(true)} className="text-white/80 text-xs bg-white/20 px-2 py-1 rounded-lg">
-          가이드
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={toggleCamera} className="text-white/80 bg-white/20 p-1.5 rounded-lg" title="카메라 전환">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 16V7a2 2 0 00-2-2h-3l-2-2H11L9 5H6a2 2 0 00-2 2v9m16 0H4m16 0l-1.5 3H5.5L4 16"/>
+              <path d="M7 13l3-3 3 3"/>
+              <path d="M17 13l-3-3-3 3"/>
+            </svg>
+          </button>
+          <button onClick={() => setShowGuideOverlay(true)} className="text-white/80 text-xs bg-white/20 px-2 py-1.5 rounded-lg">
+            가이드
+          </button>
+        </div>
       </div>
 
       {/* 카메라 에러 */}
@@ -615,7 +636,7 @@ export default function MeasurePage() {
       {/* 카메라 뷰 */}
       {!cameraError && (
         <div className="flex-1 relative">
-          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} playsInline muted />
+          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : {}} playsInline muted />
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
 
           {/* 상단 안내 + 미니 가이드 */}
