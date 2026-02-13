@@ -23,16 +23,13 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                  registrations.forEach(function(registration) {
-                    registration.unregister();
+                navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                  .then(function(reg) {
+                    console.log('FCM SW registered:', reg.scope);
+                  })
+                  .catch(function(err) {
+                    console.error('FCM SW error:', err);
                   });
-                });
-                caches.keys().then(function(cacheNames) {
-                  cacheNames.forEach(function(cacheName) {
-                    caches.delete(cacheName);
-                  });
-                });
               }
             `,
           }}
