@@ -999,6 +999,26 @@ export default function DashboardPage() {
           </button>
         </div>
 
+        {/* ── AI 자가테스트 배너 ── */}
+        <button
+          onClick={() => router.push('/self-test')}
+          className="w-full rounded-xl p-4 text-left relative overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, #7C3AED, #A78BFA)' }}
+        >
+          <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-white/10 -mr-6 -mt-6" />
+          <div className="absolute bottom-0 right-8 w-12 h-12 rounded-full bg-white/5" />
+          <div className="relative flex items-center gap-3">
+            <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+              <span className="text-2xl">🤖</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-white font-bold text-sm">AI 자가테스트</p>
+              <p className="text-white/70 text-xs mt-0.5">통증 설문 + ROM 측정 → 맞춤 운동 추천</p>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </button>
+
         {/* ── Quick Actions (3열) ── */}
         <div className="grid grid-cols-3 gap-2">
           {/* 메시지 */}
