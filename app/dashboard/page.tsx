@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import { usePushNotification } from '@/hooks/usePushNotification'
 
 interface User {
   id: string
@@ -64,6 +65,9 @@ export default function DashboardPage() {
 
   // 면책 조항 동의 상태
   const [showDisclaimer, setShowDisclaimer] = useState(false)
+
+  // FCM 푸시 알림 등록
+  usePushNotification(user?.id ?? null)
 
   // 면책 조항 동의 상태
   const [trainerId, setTrainerId] = useState<string | null>(null)

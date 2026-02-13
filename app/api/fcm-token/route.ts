@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,24 +9,55 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+function verifyToken(token: string): { userId: string; email: string } | null {
+  try {
+    const decoded = JSON.parse(Buffer.from(token, 'base64url').toString())
+    const { data, sig } = decoded
+    const secret = process.env.TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'shouldercare-secret'
+    const expectedSig = crypto.createHmac('sha256', secret).update(JSON.stringify(data)).digest('hex')
+    if (sig !== expectedSig) return null
+    if (data.exp < Date.now()) return null
+    return { userId: data.userId, email: data.email }
+  } catch {
+    return null
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('auth_token')?.value
+    // Authorization 헤더에서 토큰 확인
+    const authHeader = req.headers.get('authorization')
+    let userId: string | null = null
 
-    if (!token) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    if (authHeader?.startsWith('Bearer ')) {
+      const payload = verifyToken(authHeader.substring(7))
+      if (payload) userId = payload.userId
     }
 
-    const jwt = require('jsonwebtoken')
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
-    const userId = decoded.userId
+    // Fallback: 쿠키
+    if (!userId) {
+      const sessionCookie = req.cookies.get('session')
+      if (sessionCookie) {
+        const payload = verifyToken(sessionCookie.value)
+        if (payload) userId = payload.userId
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
 
     const { fcmToken } = await req.json()
 
     if (!fcmToken) {
       return NextResponse.json({ error: 'fcmToken required' }, { status: 400 })
     }
+
+    // 기존 토큰 삭제 후 새로 삽입 (같은 디바이스 토큰 중복 방지)
+    await supabase
+      .from('fcm_tokens')
+      .delete()
+      .eq('token', fcmToken)
 
     const { error } = await supabase
       .from('fcm_tokens')
