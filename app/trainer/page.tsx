@@ -82,21 +82,20 @@ interface PatientDetail {
   monthExerciseDays: number
 }
 
-const EXERCISE_LIBRARY = [
-  { id: 'ex-001', name: '밴드 외회전', category: '외회전', level: '초급', duration: '3:00' },
-  { id: 'ex-002', name: '견갑골 후인', category: '견갑골', level: '초급', duration: '2:30' },
-  { id: 'ex-003', name: '스캡션', category: 'ROM', level: '중급', duration: '2:00' },
-  { id: 'ex-004', name: '진자 운동', category: 'ROM', level: '초급', duration: '4:00' },
-  { id: 'ex-005', name: '벽 슬라이드', category: 'ROM', level: '초급', duration: '2:30' },
-  { id: 'ex-006', name: '밴드 내회전', category: '내회전', level: '초급', duration: '3:00' },
-  { id: 'ex-007', name: '어깨 굴곡', category: 'ROM', level: '초급', duration: '2:30' },
-  { id: 'ex-008', name: '어깨 외전', category: 'ROM', level: '초급', duration: '2:30' },
-  { id: 'ex-009', name: 'Y 레이즈', category: '근력', level: '중급', duration: '2:00' },
-  { id: 'ex-010', name: 'T 레이즈', category: '근력', level: '중급', duration: '2:00' },
-  { id: 'ex-011', name: '어깨 스트레칭', category: 'ROM', level: '초급', duration: '2:00' },
-  { id: 'ex-012', name: '어깨 회전', category: 'ROM', level: '초급', duration: '2:30' },
-  { id: 'ex-013', name: '견갑골 안정화', category: '견갑골', level: '초급', duration: '2:30' },
-]
+interface ExerciseItem {
+  id: number
+  name_ko: string
+  name_en: string
+  category: string
+  difficulty: string
+  default_sets: number
+  default_reps: number
+  default_hold_seconds: number | null
+  equipment: string | null
+  target_area: string | null
+  description: string | null
+  video_filename: string | null
+}
 
 // 한국 시간 기준 오늘 시작 (UTC)
 function getKSTTodayStartUTC(): string {
@@ -104,7 +103,6 @@ function getKSTTodayStartUTC(): string {
   const kstOffset = 9 * 60 * 60 * 1000
   const kstNow = new Date(now.getTime() + kstOffset)
   const kstDateStr = kstNow.toISOString().split('T')[0]
-  // KST 자정을 UTC로 변환 (KST 00:00 = UTC 전날 15:00)
   return new Date(kstDateStr + 'T00:00:00+09:00').toISOString()
 }
 
@@ -127,7 +125,7 @@ export default function TrainerPage() {
   const [exerciseSearchQuery, setExerciseSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('전체')
   const [showAddModal, setShowAddModal] = useState(false)
-  const [selectedExercise, setSelectedExercise] = useState<typeof EXERCISE_LIBRARY[0] | null>(null)
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseItem | null>(null)
   const [prescriptionForm, setPrescriptionForm] = useState({
     sets: 3,
     reps: 12,
@@ -137,6 +135,10 @@ export default function TrainerPage() {
     notes: '',
   })
   const [saving, setSaving] = useState(false)
+
+  // DB에서 가져온 운동 라이브러리
+  const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseItem[]>([])
+  const [exerciseLibraryLoading, setExerciseLibraryLoading] = useState(false)
 
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalPatients: 0,
@@ -206,8 +208,22 @@ export default function TrainerPage() {
     return () => { supabase.removeChannel(channel) }
   }, [user])
 
+  // DB에서 운동 라이브러리 로드
+  const fetchExerciseLibrary = async () => {
+    setExerciseLibraryLoading(true)
+    const { data, error } = await supabase
+      .from('exercises')
+      .select('id, name_ko, name_en, category, difficulty, default_sets, default_reps, default_hold_seconds, equipment, target_area, description, video_filename')
+      .order('category')
+      .order('name_ko')
+
+    if (!error && data) {
+      setExerciseLibrary(data)
+    }
+    setExerciseLibraryLoading(false)
+  }
+
   const fetchPatients = async (trainerId?: string) => {
-    // 배정된 환자 ID 조회
     let patientIds: string[] = []
 
     if (trainerId) {
@@ -221,21 +237,17 @@ export default function TrainerPage() {
       }
     }
 
-    // 배정된 환자가 없으면 빈 배열
     if (patientIds.length === 0) {
-      // 배정 테이블에 데이터가 없으면 기존처럼 전체 환자 표시 (하위호환)
       const { count } = await supabase
         .from('patient_assignments')
         .select('*', { count: 'exact', head: true })
 
       if (count && count > 0) {
-        // 배정 시스템이 사용 중인데 이 트레이너에겐 배정된 환자가 없음
         setPatients([])
         fetchDashboardStats([])
         return
       }
 
-      // 배정 시스템 미사용 → 전체 환자 표시
       const { data, error } = await supabase
         .from('users')
         .select('id, name, email, onboarding_completed, rehab_goal, pain_level_initial, created_at, updated_at')
@@ -267,7 +279,6 @@ export default function TrainerPage() {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
-    // 오늘 운동 완료한 고유 유저 수 (KST 기준)
     const { data: todayLogs } = await supabase
       .from('exercise_logs')
       .select('user_id')
@@ -275,7 +286,6 @@ export default function TrainerPage() {
 
     const todayUniqueUsers = new Set(todayLogs?.map(l => l.user_id) || [])
 
-    // 최근 7일 활동 유저
     const { data: weekLogs } = await supabase
       .from('exercise_logs')
       .select('user_id, completed_at')
@@ -291,7 +301,6 @@ export default function TrainerPage() {
     })
     setPatientLastActivity(lastActivityMap)
 
-    // 오늘 통증 8 이상 (KST 기준)
     const { data: painLogs } = await supabase
       .from('pain_logs')
       .select('user_id, pain_level, logged_at')
@@ -300,7 +309,6 @@ export default function TrainerPage() {
       .gte('pain_level', 8)
       .order('logged_at', { ascending: false })
 
-    // 이미 해제된 알림 조회 (KST 날짜 기준) — dismissed_at 포함
     const { data: dismissals } = await supabase
       .from('alert_dismissals')
       .select('patient_id, dismissed_at')
@@ -312,14 +320,11 @@ export default function TrainerPage() {
       dismissedMap[d.patient_id] = d.dismissed_at
     })
 
-    // 환자별 가장 높은 통증만 표시 (중복 제거)
-    // 해제 시점 이후에 새로 기록된 통증이 있으면 알림 다시 표시
     const alertMap: Record<string, boolean> = {}
     const seenPatients = new Set<string>()
     const painAlerts = (painLogs || [])
       .filter(log => {
         if (!log.user_id) return false
-        // 해제된 적이 있으면, 해제 시점 이후 기록인지 확인
         if (dismissedMap[log.user_id]) {
           if (new Date(log.logged_at) <= new Date(dismissedMap[log.user_id])) return false
         }
@@ -360,7 +365,6 @@ export default function TrainerPage() {
       alert_date: kstDateStr,
     }, { onConflict: 'patient_id,alert_type,alert_date' })
 
-    // UI에서 즉시 제거
     setPatientAlertStatus(prev => {
       const next = { ...prev }
       delete next[patientId]
@@ -450,17 +454,21 @@ export default function TrainerPage() {
 
   const handleGoToPrescribe = () => {
     setViewMode('prescribe')
+    // 운동 라이브러리가 아직 로드 안 됐으면 로드
+    if (exerciseLibrary.length === 0) {
+      fetchExerciseLibrary()
+    }
   }
 
-  const handleAddExercise = (exercise: typeof EXERCISE_LIBRARY[0]) => {
+  const handleAddExercise = (exercise: ExerciseItem) => {
     setSelectedExercise(exercise)
     setPrescriptionForm({
-      sets: 3,
-      reps: 12,
+      sets: exercise.default_sets || 3,
+      reps: exercise.default_reps || 12,
       frequency_per_week: 5,
       rest_seconds: 60,
       resistance: '',
-      notes: '',
+      notes: exercise.default_hold_seconds ? `유지 시간: ${exercise.default_hold_seconds}초` : '',
     })
     setShowAddModal(true)
   }
@@ -472,8 +480,8 @@ export default function TrainerPage() {
     const { error } = await supabase.from('prescriptions').insert({
       patient_id: selectedPatient.id,
       trainer_id: user.id,
-      exercise_id: selectedExercise.id,
-      exercise_name: selectedExercise.name,
+      exercise_id: String(selectedExercise.id),
+      exercise_name: selectedExercise.name_ko,
       sets: prescriptionForm.sets,
       reps: prescriptionForm.reps,
       frequency_per_week: prescriptionForm.frequency_per_week,
@@ -524,10 +532,13 @@ export default function TrainerPage() {
     setSavingNote(false)
   }
 
-  const categories = ['전체', ...Array.from(new Set(EXERCISE_LIBRARY.map(e => e.category)))]
+  // DB 데이터 기반 동적 카테고리
+  const categories = ['전체', ...Array.from(new Set(exerciseLibrary.map(e => e.category))).sort()]
 
-  const filteredExercises = EXERCISE_LIBRARY.filter(e => {
-    const matchSearch = exerciseSearchQuery === '' || e.name.replace(/\s/g, '').includes(exerciseSearchQuery.replace(/\s/g, ''))
+  const filteredExercises = exerciseLibrary.filter(e => {
+    const matchSearch = exerciseSearchQuery === '' ||
+      e.name_ko.replace(/\s/g, '').includes(exerciseSearchQuery.replace(/\s/g, '')) ||
+      e.name_en.toLowerCase().includes(exerciseSearchQuery.toLowerCase())
     const matchCategory = categoryFilter === '전체' || e.category === categoryFilter
     return matchSearch && matchCategory
   })
@@ -562,6 +573,18 @@ export default function TrainerPage() {
     if (hours < 24) return `${hours}시간 전`
     const days = Math.floor(hours / 24)
     return `${days}일 전`
+  }
+
+  // 난이도 표시용
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case '매우 낮음': return 'bg-green-100 text-green-700'
+      case '낮음': return 'bg-blue-100 text-blue-700'
+      case '중간': return 'bg-yellow-100 text-yellow-700'
+      case '중상': return 'bg-orange-100 text-orange-700'
+      case '높음': return 'bg-red-100 text-red-700'
+      default: return 'bg-gray-100 text-gray-700'
+    }
   }
 
   if (loading) {
@@ -755,7 +778,7 @@ export default function TrainerPage() {
                   className="bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition"
                 >
                   운동 제안
-              </button>
+                </button>
               </div>
             </div>
           </div>
@@ -767,7 +790,6 @@ export default function TrainerPage() {
           </div>
         ) : patientDetail ? (
           <main className="max-w-7xl mx-auto px-4 py-4 space-y-4">
-            {/* 확인 완료 → 목록으로 버튼 (알림 있는 환자일 때 표시) */}
             {patientAlertStatus[selectedPatient.id] && (
               <button
                 onClick={async () => {
@@ -1021,67 +1043,86 @@ export default function TrainerPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">📚 운동 라이브러리</h2>
+          <h2 className="font-semibold text-gray-900 mb-4">📚 운동 라이브러리 ({exerciseLibrary.length}개)</h2>
 
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex gap-2 overflow-x-auto pb-1 flex-shrink-0">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
-                    categoryFilter === cat
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              placeholder="운동 검색..."
-              value={exerciseSearchQuery}
-              onChange={(e) => setExerciseSearchQuery(e.target.value)}
-              className="flex-1 min-w-[120px] px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {filteredExercises.map((exercise) => {
-              const alreadyPrescribed = currentPrescriptions.some(p => p.exercise_id === exercise.id)
-
-              return (
-                <div
-                  key={exercise.id}
-                  className={`border rounded-lg p-3 flex flex-col justify-between ${
-                    alreadyPrescribed ? 'bg-gray-50 opacity-60' : ''
-                  }`}
-                >
-                  <div className="mb-2">
-                    <p className="font-semibold text-gray-900 text-sm">{exercise.name}</p>
-                    <p className="text-[11px] text-gray-500">{exercise.category}</p>
-                    <p className="text-[11px] text-gray-400">{exercise.level} · {exercise.duration}</p>
-                  </div>
-                  <button
-                    onClick={() => handleAddExercise(exercise)}
-                    disabled={alreadyPrescribed}
-                    className={`w-full py-1.5 rounded-lg text-xs font-medium transition ${
-                      alreadyPrescribed
-                        ? 'bg-gray-200 text-gray-400'
-                        : 'bg-blue-500 text-white hover:bg-blue-600'
-                    }`}
-                  >
-                    {alreadyPrescribed ? '제안됨' : '+ 제안'}
-                  </button>
+          {exerciseLibraryLoading ? (
+            <p className="text-center text-gray-400 py-6">운동 목록 불러오는 중...</p>
+          ) : (
+            <>
+              <div className="space-y-3 mb-4">
+                <input
+                  type="text"
+                  placeholder="운동 검색 (한글/영문)..."
+                  value={exerciseSearchQuery}
+                  onChange={(e) => setExerciseSearchQuery(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategoryFilter(cat)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
+                        categoryFilter === cat
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
                 </div>
-              )
-            })}
-          </div>
+              </div>
 
-          {filteredExercises.length === 0 && (
-            <p className="text-center text-gray-400 py-6 text-sm">검색 결과가 없습니다</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {filteredExercises.map((exercise) => {
+                  const alreadyPrescribed = currentPrescriptions.some(p => p.exercise_id === String(exercise.id))
+
+                  return (
+                    <div
+                      key={exercise.id}
+                      className={`border rounded-lg p-3 flex flex-col justify-between ${
+                        alreadyPrescribed ? 'bg-gray-50 opacity-60' : ''
+                      }`}
+                    >
+                      <div className="mb-2">
+                        <p className="font-semibold text-gray-900 text-sm">{exercise.name_ko}</p>
+                        <p className="text-[11px] text-gray-500">{exercise.name_en}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${getDifficultyColor(exercise.difficulty)}`}>
+                            {exercise.difficulty}
+                          </span>
+                          {exercise.equipment && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                              {exercise.equipment}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {exercise.category} · {exercise.default_sets}세트×{exercise.default_reps}회
+                          {exercise.default_hold_seconds ? ` · ${exercise.default_hold_seconds}초 유지` : ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleAddExercise(exercise)}
+                        disabled={alreadyPrescribed}
+                        className={`w-full py-1.5 rounded-lg text-xs font-medium transition ${
+                          alreadyPrescribed
+                            ? 'bg-gray-200 text-gray-400'
+                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                        }`}
+                      >
+                        {alreadyPrescribed ? '제안됨' : '+ 제안'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {filteredExercises.length === 0 && (
+                <p className="text-center text-gray-400 py-6 text-sm">검색 결과가 없습니다</p>
+              )}
+            </>
           )}
         </div>
       </main>
@@ -1094,7 +1135,13 @@ export default function TrainerPage() {
               <button onClick={() => setShowAddModal(false)} className="text-gray-400 text-2xl">×</button>
             </div>
 
-            <p className="font-semibold text-blue-600">{selectedExercise.name}</p>
+            <div>
+              <p className="font-semibold text-blue-600">{selectedExercise.name_ko}</p>
+              <p className="text-xs text-gray-500">{selectedExercise.name_en}</p>
+              {selectedExercise.description && (
+                <p className="text-xs text-gray-400 mt-1">{selectedExercise.description}</p>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
