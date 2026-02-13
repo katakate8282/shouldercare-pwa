@@ -1,6 +1,6 @@
 'use client'
 
-import { fetchAuthMe } from '@/lib/fetch-auth'
+import { fetchAuthMe, fetchWithAuth } from '@/lib/fetch-auth'
 import { removeToken } from '@/lib/token-storage'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
