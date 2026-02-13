@@ -1,11 +1,13 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
+import { useState } from 'react'
 
 interface BottomNavProps {
   role?: string
   unreadCount?: number
   trainerId?: string | null
+  isPremium?: boolean
 }
 
 // Aqua Blue Theme
@@ -90,9 +92,10 @@ const ICON_MAP: Record<string, React.FC<{ color: string }>> = {
   reports: IconChart,
 }
 
-export default function BottomNav({ role = 'patient', unreadCount = 0, trainerId }: BottomNavProps) {
+export default function BottomNav({ role = 'patient', unreadCount = 0, trainerId, isPremium = true }: BottomNavProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const [showPremiumModal, setShowPremiumModal] = useState(false)
 
   const getTabs = () => {
     if (role === 'admin') {
@@ -139,51 +142,96 @@ export default function BottomNav({ role = 'patient', unreadCount = 0, trainerId
     return pathname === tab.path
   }
 
+  const isMessageLocked = (tabKey: string) => {
+    return tabKey === 'messages' && role === 'patient' && !isPremium
+  }
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40" style={{ boxShadow: '0 -2px 12px rgba(0,0,0,0.03)' }}>
-      <div className="max-w-7xl mx-auto px-4 flex justify-around py-2 pb-4">
-        {tabs.map((tab) => {
-          const active = isActive(tab)
-          const showBadge = tab.key === 'messages' && unreadCount > 0
-          const IconComponent = ICON_MAP[tab.key] || IconHome
-          const color = active ? ACTIVE_COLOR : INACTIVE_COLOR
+    <>
+      {showPremiumModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-sky-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">프리미엄 기능입니다</h3>
+              <p className="text-sm text-gray-500 mb-1">트레이너 1:1 메시지와 맞춤 운동 제안을</p>
+              <p className="text-sm text-gray-500 mb-6">이용하려면 프리미엄 구독이 필요해요.</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setShowPremiumModal(false); router.push('/subscribe') }}
+                  className="w-full py-3 rounded-xl text-white font-bold text-sm"
+                  style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
+                >
+                  구독 알아보기
+                </button>
+                <button
+                  onClick={() => setShowPremiumModal(false)}
+                  className="w-full py-3 rounded-xl text-gray-500 font-medium text-sm hover:bg-gray-50"
+                >
+                  다음에 할게요
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-          return (
-            <button
-              key={tab.key}
-              onClick={() => router.push(tab.path)}
-              className="flex flex-col items-center gap-1 relative"
-            >
-              {/* Active indicator */}
-              {active && (
-                <div
-                  className="absolute -top-2 rounded-full"
-                  style={{ width: 18, height: 3, backgroundColor: ACTIVE_COLOR }}
-                />
-              )}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40" style={{ boxShadow: '0 -2px 12px rgba(0,0,0,0.03)' }}>
+        <div className="max-w-7xl mx-auto px-4 flex justify-around py-2 pb-4">
+          {tabs.map((tab) => {
+            const active = isActive(tab)
+            const locked = isMessageLocked(tab.key)
+            const showBadge = tab.key === 'messages' && unreadCount > 0 && !locked
+            const IconComponent = ICON_MAP[tab.key] || IconHome
+            const color = locked ? '#CBD5E1' : active ? ACTIVE_COLOR : INACTIVE_COLOR
 
-              <IconComponent color={color} />
-
-              {/* Unread badge */}
-              {showBadge && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-4 rounded-full flex items-center justify-center px-1">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-
-              <span
-                className="text-[10px]"
-                style={{
-                  color,
-                  fontWeight: active ? 700 : 400,
+            return (
+              <button
+                key={tab.key}
+                onClick={() => {
+                  if (locked) {
+                    setShowPremiumModal(true)
+                    return
+                  }
+                  router.push(tab.path)
                 }}
+                className="flex flex-col items-center gap-1 relative"
               >
-                {tab.label}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </nav>
+                {active && !locked && (
+                  <div
+                    className="absolute -top-2 rounded-full"
+                    style={{ width: 18, height: 3, backgroundColor: ACTIVE_COLOR }}
+                  />
+                )}
+
+                <IconComponent color={color} />
+
+                {locked && (
+                  <span className="absolute -top-1 -right-1 text-[9px]">🔒</span>
+                )}
+
+                {showBadge && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-4 rounded-full flex items-center justify-center px-1">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+
+                <span
+                  className="text-[10px]"
+                  style={{
+                    color,
+                    fontWeight: active ? 700 : 400,
+                  }}
+                >
+                  {tab.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </nav>
+    </>
   )
 }

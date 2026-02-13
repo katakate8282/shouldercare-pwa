@@ -1132,7 +1132,7 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      <BottomNav role="patient" unreadCount={unreadCount} trainerId={trainerId} />
+      <BottomNav role="patient" unreadCount={unreadCount} trainerId={trainerId} isPremium={subStatus.isPremium} />
     </div>
   )
 }
