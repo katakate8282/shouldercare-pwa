@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -8,7 +9,8 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-function hashPassword(password: string): string {
+// SHA-256 (하위호환용 — 기존 해시 비교)
+function sha256Hash(password: string): string {
   return crypto.createHash('sha256').update(password).digest('hex')
 }
 
@@ -45,7 +47,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
     }
 
-    if (!hospital.admin_password_hash || hospital.admin_password_hash !== hashPassword(password)) {
+    if (!hospital.admin_password_hash) {
+      return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
+    }
+
+    // bcrypt 해시인지 SHA-256 해시인지 판별
+    const storedHash = hospital.admin_password_hash
+    let passwordValid = false
+
+    if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$')) {
+      // bcrypt 해시
+      passwordValid = await bcrypt.compare(password, storedHash)
+    } else {
+      // SHA-256 해시 (하위호환)
+      passwordValid = storedHash === sha256Hash(password)
+
+      // 검증 성공 시 bcrypt로 자동 마이그레이션
+      if (passwordValid) {
+        const bcryptHash = await bcrypt.hash(password, 10)
+        await supabase
+          .from('hospitals')
+          .update({ admin_password_hash: bcryptHash })
+          .eq('id', hospital.id)
+      }
+    }
+
+    if (!passwordValid) {
       return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
     }
 
@@ -59,6 +86,12 @@ export async function POST(request: NextRequest) {
         name: hospital.name,
         prefix: hospital.prefix,
         plan_type: hospital.plan_type,
+        contract_status: hospital.contract_status,
+        admin_email: hospital.admin_email,
+        phone: hospital.phone,
+        address: hospital.address,
+        contract_start: hospital.contract_start,
+        contract_end: hospital.contract_end,
       },
     })
 
