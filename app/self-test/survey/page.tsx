@@ -287,11 +287,6 @@ export default function SurveyPage() {
   const [survey, setSurvey] = useState<SurveyData>({ ...INITIAL_SURVEY })
   const [animating, setAnimating] = useState(false)
 
-  // Q9 크론질환 텍스트 입력 서브스텝
-  const [showChronicInput, setShowChronicInput] = useState(false)
-  // Q10 운동 텍스트 입력 서브스텝
-  const [showExerciseInput, setShowExerciseInput] = useState(false)
-
   // 설문 완료 처리
   const handleComplete = (finalData?: Partial<SurveyData>) => {
     const finalSurvey = { ...survey, ...finalData }
@@ -305,20 +300,12 @@ export default function SurveyPage() {
     if (animating) return
     setAnimating(true)
     setTimeout(() => {
-      if (step === 9 && survey.chronic_disease === true && !showChronicInput) {
-        setShowChronicInput(true)
-      } else if (step === 10 && survey.regular_exercise === true && !showExerciseInput) {
-        setShowExerciseInput(true)
-      } else if (showChronicInput) {
-        setShowChronicInput(false)
-        setStep(10)
-      } else if (showExerciseInput) {
-        setShowExerciseInput(false)
-        handleComplete()
+      if (step === 10) {
+        // Q10에서 다음 = 설문 완료 (handleComplete은 버튼에서 직접 호출)
+        setAnimating(false)
         return
-      } else {
-        setStep(prev => prev + 1)
       }
+      setStep(prev => prev + 1)
       setAnimating(false)
     }, 200)
   }
@@ -327,17 +314,7 @@ export default function SurveyPage() {
     if (animating) return
     setAnimating(true)
     setTimeout(() => {
-      if (showExerciseInput) {
-        setShowExerciseInput(false)
-      } else if (showChronicInput) {
-        setShowChronicInput(false)
-      } else if (step > 1) {
-        if (step === 10 && survey.chronic_disease === true) {
-          setStep(9)
-          setShowChronicInput(true)
-          setAnimating(false)
-          return
-        }
+      if (step > 1) {
         setStep(prev => prev - 1)
       } else {
         router.push('/self-test')
@@ -349,10 +326,7 @@ export default function SurveyPage() {
 
   // 진행률 계산
   const getProgress = () => {
-    let current = step
-    if (showChronicInput) current = 9.5
-    if (showExerciseInput) current = 10.5
-    return Math.min((current / 11) * 100, 100)
+    return Math.min((step / 10) * 100, 100)
   }
 
   // Q8 치료 선택 시 하위 옵션 가져오기
@@ -642,16 +616,22 @@ export default function SurveyPage() {
       )
     }
 
-    // Q9: 만성질환
-    if (step === 9 && !showChronicInput) {
+    // Q9: 만성질환 (인라인 텍스트박스)
+    if (step === 9) {
+      const q9NextEnabled = survey.chronic_disease === false ||
+        (survey.chronic_disease === true && survey.chronic_medication.trim().length > 0)
+
       return (
-        <QuestionWrapper num={9} title="고혈압, 당뇨 같은 만성질환을 앓고 있나요?">
+        <QuestionWrapper
+          num={9}
+          title="고혈압, 당뇨 같은 만성질환을 앓고 있나요?"
+          showNext
+          nextEnabled={q9NextEnabled}
+          onNext={goNext}
+        >
           <div className="space-y-2.5">
             <button
-              onClick={() => {
-                setSurvey(prev => ({ ...prev, chronic_disease: true }))
-                setTimeout(goNext, 300)
-              }}
+              onClick={() => setSurvey(prev => ({ ...prev, chronic_disease: true }))}
               className={`w-full py-3.5 px-4 rounded-xl text-left text-sm font-medium transition-all ${
                 survey.chronic_disease === true
                   ? 'bg-sky-50 border-2 border-sky-500 text-sky-700'
@@ -660,11 +640,23 @@ export default function SurveyPage() {
             >
               네
             </button>
+
+            {/* 인라인 텍스트박스 */}
+            {survey.chronic_disease === true && (
+              <div className="ml-4 mt-1">
+                <p className="text-xs text-slate-400 ml-1 mb-1.5">복용 중인 약을 적어주세요:</p>
+                <textarea
+                  autoFocus
+                  value={survey.chronic_medication}
+                  onChange={(e) => setSurvey(prev => ({ ...prev, chronic_medication: e.target.value }))}
+                  placeholder="예: 고혈압 - 아모디핀 5mg&#10;당뇨 - 메트포르민 500mg"
+                  className="w-full h-24 p-3 rounded-xl border-2 border-slate-200 focus:border-sky-500 focus:outline-none text-sm text-slate-700 placeholder-slate-400 resize-none"
+                />
+              </div>
+            )}
+
             <button
-              onClick={() => {
-                setSurvey(prev => ({ ...prev, chronic_disease: false, chronic_medication: '' }))
-                setTimeout(goNext, 300)
-              }}
+              onClick={() => setSurvey(prev => ({ ...prev, chronic_disease: false, chronic_medication: '' }))}
               className={`w-full py-3.5 px-4 rounded-xl text-left text-sm font-medium transition-all ${
                 survey.chronic_disease === false
                   ? 'bg-sky-50 border-2 border-sky-500 text-sky-700'
@@ -678,38 +670,30 @@ export default function SurveyPage() {
       )
     }
 
-    // Q9 하위: 복용 약물 입력
-    if (showChronicInput) {
+    // Q10: 꾸준한 운동
+    // Q10: 꾸준한 운동 (인라인 텍스트박스)
+    if (step === 10) {
+      const q10NextEnabled = survey.regular_exercise === false ||
+        (survey.regular_exercise === true && survey.regular_exercise_detail.trim().length > 0)
+
       return (
         <QuestionWrapper
-          num={9}
-          title="복용 중인 약을 알려주세요"
-          subtitle="질환명과 약 이름을 적어주세요"
+          num={10}
+          title="평소 꾸준히 하는 운동이 있나요?"
           showNext
-          nextEnabled={survey.chronic_medication.trim().length > 0}
-          onNext={goNext}
+          nextEnabled={q10NextEnabled}
+          onNext={() => {
+            if (survey.regular_exercise === false) {
+              handleComplete({ regular_exercise: false, regular_exercise_detail: '' })
+            } else {
+              handleComplete()
+            }
+          }}
+          nextLabel="설문 완료"
         >
-          <textarea
-            autoFocus
-            value={survey.chronic_medication}
-            onChange={(e) => setSurvey(prev => ({ ...prev, chronic_medication: e.target.value }))}
-            placeholder="예: 고혈압 - 아모디핀 5mg&#10;당뇨 - 메트포르민 500mg"
-            className="w-full h-32 p-4 rounded-xl border-2 border-slate-200 focus:border-sky-500 focus:outline-none text-sm text-slate-700 placeholder-slate-400 resize-none"
-          />
-        </QuestionWrapper>
-      )
-    }
-
-    // Q10: 꾸준한 운동
-    if (step === 10 && !showExerciseInput) {
-      return (
-        <QuestionWrapper num={10} title="평소 꾸준히 하는 운동이 있나요?">
           <div className="space-y-2.5">
             <button
-              onClick={() => {
-                setSurvey(prev => ({ ...prev, regular_exercise: true }))
-                setTimeout(goNext, 300)
-              }}
+              onClick={() => setSurvey(prev => ({ ...prev, regular_exercise: true }))}
               className={`w-full py-3.5 px-4 rounded-xl text-left text-sm font-medium transition-all ${
                 survey.regular_exercise === true
                   ? 'bg-sky-50 border-2 border-sky-500 text-sky-700'
@@ -718,11 +702,23 @@ export default function SurveyPage() {
             >
               네
             </button>
+
+            {/* 인라인 텍스트박스 */}
+            {survey.regular_exercise === true && (
+              <div className="ml-4 mt-1">
+                <p className="text-xs text-slate-400 ml-1 mb-1.5">운동 종류와 빈도를 적어주세요:</p>
+                <textarea
+                  autoFocus
+                  value={survey.regular_exercise_detail}
+                  onChange={(e) => setSurvey(prev => ({ ...prev, regular_exercise_detail: e.target.value }))}
+                  placeholder="예: 수영 주 3회, 걷기 매일 30분"
+                  className="w-full h-24 p-3 rounded-xl border-2 border-slate-200 focus:border-sky-500 focus:outline-none text-sm text-slate-700 placeholder-slate-400 resize-none"
+                />
+              </div>
+            )}
+
             <button
-              onClick={() => {
-                setSurvey(prev => ({ ...prev, regular_exercise: false, regular_exercise_detail: '' }))
-                setTimeout(() => handleComplete({ regular_exercise: false, regular_exercise_detail: '' }), 300)
-              }}
+              onClick={() => setSurvey(prev => ({ ...prev, regular_exercise: false, regular_exercise_detail: '' }))}
               className={`w-full py-3.5 px-4 rounded-xl text-left text-sm font-medium transition-all ${
                 survey.regular_exercise === false
                   ? 'bg-sky-50 border-2 border-sky-500 text-sky-700'
@@ -732,29 +728,6 @@ export default function SurveyPage() {
               아니요
             </button>
           </div>
-        </QuestionWrapper>
-      )
-    }
-
-    // Q10 하위: 운동 입력
-    if (showExerciseInput) {
-      return (
-        <QuestionWrapper
-          num={10}
-          title="어떤 운동을 하고 계세요?"
-          subtitle="운동 종류와 빈도를 적어주세요"
-          showNext
-          nextEnabled={survey.regular_exercise_detail.trim().length > 0}
-          onNext={() => handleComplete()}
-          nextLabel="설문 완료"
-        >
-          <textarea
-            autoFocus
-            value={survey.regular_exercise_detail}
-            onChange={(e) => setSurvey(prev => ({ ...prev, regular_exercise_detail: e.target.value }))}
-            placeholder="예: 수영 주 3회, 걷기 매일 30분"
-            className="w-full h-32 p-4 rounded-xl border-2 border-slate-200 focus:border-sky-500 focus:outline-none text-sm text-slate-700 placeholder-slate-400 resize-none"
-          />
         </QuestionWrapper>
       )
     }
