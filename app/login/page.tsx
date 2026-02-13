@@ -19,43 +19,60 @@ function LoginContent() {
   const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [view, setView] = useState<'main' | 'email-login' | 'email-signup' | 'hospital-code'>('main')
+  const [view, setView] = useState<'splash' | 'main' | 'email-login' | 'email-signup' | 'hospital-code'>('splash')
+  const [splashFading, setSplashFading] = useState(false)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [hospitalCode, setHospitalCode] = useState('')
 
+  // 콜백 토큰 처리 + 이미 로그인된 경우 체크
   useEffect(() => {
     const errorCode = searchParams.get('error')
     if (errorCode) {
       setError(ERROR_MESSAGES[errorCode] || '오류가 발생했습니다.')
+      setView('main')
+      return
     }
 
-    // 콜백에서 돌아온 경우 토큰 저장
     const token = searchParams.get('token')
     const redirect = searchParams.get('redirect')
     if (token) {
       saveToken(token).then(() => {
         router.push(redirect || '/dashboard')
       })
+      return
     }
-  }, [searchParams, router])
 
-  // 이미 로그인된 경우 리다이렉트
-  useEffect(() => {
-    getToken().then((token) => {
-      if (token) {
+    // 이미 로그인된 경우
+    getToken().then((existingToken) => {
+      if (existingToken) {
         fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${existingToken}` },
         })
           .then((res) => {
-            if (res.ok) router.push('/dashboard')
+            if (res.ok) {
+              router.push('/dashboard')
+            } else {
+              startSplashTimer()
+            }
           })
-          .catch(() => {})
+          .catch(() => startSplashTimer())
+      } else {
+        startSplashTimer()
       }
     })
-  }, [router])
+  }, [searchParams, router])
+
+  const startSplashTimer = () => {
+    setTimeout(() => {
+      setSplashFading(true)
+      setTimeout(() => {
+        setView('main')
+      }, 500)
+    }, 2500)
+  }
 
   const handleKakaoLogin = () => {
     setIsLoading(true)
@@ -129,10 +146,61 @@ function LoginContent() {
     setIsLoading(false)
   }
 
-  // ===== 메인 화면 =====
+  // ===== 스플래시 화면 =====
+  if (view === 'splash') {
+    return (
+      <div className={`min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4 transition-opacity duration-500 ${splashFading ? 'opacity-0' : 'opacity-100'}`}>
+        <div className="text-center w-full max-w-sm">
+          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-5 shadow-2xl">
+            <span className="text-5xl">🏥</span>
+          </div>
+          <h1 className="text-4xl font-bold text-white mb-2">어깨케어</h1>
+          <p className="text-blue-100 text-base mb-10">AI 기반 어깨 재활 전문 플랫폼</p>
+
+          <div className="space-y-4">
+            <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-4 flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl">🤖</span>
+              </div>
+              <div className="text-left">
+                <p className="text-white font-bold text-sm">AI 자세분석</p>
+                <p className="text-blue-100 text-xs">실시간 운동 피드백</p>
+              </div>
+            </div>
+
+            <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-4 flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl">👨‍⚕️</span>
+              </div>
+              <div className="text-left">
+                <p className="text-white font-bold text-sm">1:1 전문 트레이너</p>
+                <p className="text-blue-100 text-xs">맞춤형 운동 제안</p>
+              </div>
+            </div>
+
+            <div className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-4 flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl">📊</span>
+              </div>
+              <div className="text-left">
+                <p className="text-white font-bold text-sm">재활 진행상황 추적</p>
+                <p className="text-blue-100 text-xs">통증, ROM 등 자동 기록</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== 메인 화면 (로그인 옵션) =====
   if (view === 'main') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4 animate-fadeIn">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <div className="text-center mb-8">
@@ -195,6 +263,16 @@ function LoginContent() {
             </div>
           </div>
         </div>
+
+        <style jsx global>{`
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+          }
+        `}</style>
       </div>
     )
   }
@@ -330,7 +408,13 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-        <div className="text-white text-lg">로딩중...</div>
+        <div className="text-center">
+          <div className="w-28 h-28 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl">
+            <span className="text-6xl">🏥</span>
+          </div>
+          <h1 className="text-4xl font-bold text-white mb-3">어깨케어</h1>
+          <p className="text-blue-100 text-lg">AI 기반 어깨 재활 전문 플랫폼</p>
+        </div>
       </div>
     }>
       <LoginContent />
