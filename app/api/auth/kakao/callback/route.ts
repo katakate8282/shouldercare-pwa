@@ -84,12 +84,12 @@ export async function GET(request: NextRequest) {
 
     let userId: string
     let onboardingDone = false
+    let hospitalCode: string | null = null
 
     if (existingUser) {
       userId = existingUser.id
       onboardingDone = existingUser.onboarding_completed === true
 
-      // 병원코드로 로그인한 경우 구독 업그레이드 (이미 유료가 아닐 때만)
       const updateData: Record<string, any> = {
         name,
         updated_at: new Date().toISOString(),
@@ -98,10 +98,11 @@ export async function GET(request: NextRequest) {
       if (hospitalInfo && (!existingUser.subscription_type || existingUser.subscription_type === 'FREE')) {
         const expiresAt = new Date()
         expiresAt.setDate(expiresAt.getDate() + 84) // 12주 = 84일
+        hospitalCode = `${hospitalInfo.hospitalId}-${hospitalInfo.phoneDigits}`
         updateData.subscription_type = 'PLATINUM_PATIENT'
         updateData.subscription_expires_at = expiresAt.toISOString()
         updateData.hospital_id = hospitalInfo.hospitalId
-        updateData.hospital_code = `${hospitalInfo.hospitalId}-${hospitalInfo.phoneDigits}`
+        updateData.hospital_code = hospitalCode
       }
 
       await supabase
@@ -119,14 +120,14 @@ export async function GET(request: NextRequest) {
         updated_at: new Date().toISOString(),
       }
 
-      // 병원코드로 가입한 경우
       if (hospitalInfo) {
         const expiresAt = new Date()
         expiresAt.setDate(expiresAt.getDate() + 84)
+        hospitalCode = `${hospitalInfo.hospitalId}-${hospitalInfo.phoneDigits}`
         insertData.subscription_type = 'PLATINUM_PATIENT'
         insertData.subscription_expires_at = expiresAt.toISOString()
         insertData.hospital_id = hospitalInfo.hospitalId
-        insertData.hospital_code = `${hospitalInfo.hospitalId}-${hospitalInfo.phoneDigits}`
+        insertData.hospital_code = hospitalCode
       }
 
       const { data: newUser, error: insertError } = await supabase
@@ -142,6 +143,30 @@ export async function GET(request: NextRequest) {
 
       userId = newUser.id
       onboardingDone = false
+    }
+
+    // hospital_patients 테이블에 user_id 연결
+    if (hospitalCode && userId) {
+      const { data: hospitalPatient } = await supabase
+        .from('hospital_patients')
+        .select('id')
+        .eq('hospital_code', hospitalCode)
+        .is('user_id', null)
+        .single()
+
+      if (hospitalPatient) {
+        // hospital_patients에 user_id 연결
+        await supabase
+          .from('hospital_patients')
+          .update({ user_id: userId })
+          .eq('id', hospitalPatient.id)
+
+        // users에 active_hospital_patient_id 설정
+        await supabase
+          .from('users')
+          .update({ active_hospital_patient_id: hospitalPatient.id })
+          .eq('id', userId)
+      }
     }
 
     // 토큰 생성

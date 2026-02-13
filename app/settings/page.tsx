@@ -1,6 +1,6 @@
 'use client'
 
-import { fetchAuthMe } from '@/lib/fetch-auth'
+import { fetchAuthMe, fetchWithAuth } from '@/lib/fetch-auth'
 import { removeToken } from '@/lib/token-storage'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -12,12 +12,41 @@ interface User {
   email: string
   subscription_type?: string
   role?: string
+  hospital_code?: string
+  hospital_id?: string
+}
+
+interface HospitalLink {
+  linked: boolean
+  hospital_code?: string
+  hospital?: {
+    id: string
+    name: string
+    prefix: string
+    plan_type: string
+  }
+  patient?: {
+    program_week: number
+    program_start_date: string
+    program_end_date: string
+    diagnosis: string | null
+    surgery_type: string | null
+    status: string
+    trainer_name: string | null
+  }
 }
 
 export default function SettingsPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // 병원 연결 상태
+  const [hospitalLink, setHospitalLink] = useState<HospitalLink | null>(null)
+  const [showHospitalModal, setShowHospitalModal] = useState(false)
+  const [hospitalCodeInput, setHospitalCodeInput] = useState('')
+  const [hospitalLinking, setHospitalLinking] = useState(false)
+  const [hospitalMessage, setHospitalMessage] = useState('')
 
   useEffect(() => {
     fetchAuthMe()
@@ -28,6 +57,7 @@ export default function SettingsPage() {
       .then(data => {
         if (data.user) {
           setUser(data.user)
+          fetchHospitalLink()
         } else {
           router.push('/login')
         }
@@ -36,12 +66,61 @@ export default function SettingsPage() {
       .finally(() => setLoading(false))
   }, [router])
 
+  async function fetchHospitalLink() {
+    try {
+      const res = await fetchWithAuth('/api/auth/link-hospital')
+      if (res.ok) {
+        const data = await res.json()
+        setHospitalLink(data)
+      }
+    } catch {}
+  }
+
+  async function handleLinkHospital(e: React.FormEvent) {
+    e.preventDefault()
+    setHospitalLinking(true)
+    setHospitalMessage('')
+
+    try {
+      const res = await fetchWithAuth('/api/auth/link-hospital', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: hospitalCodeInput }),
+      })
+      const data = await res.json()
+
+      if (res.ok && data.success) {
+        setHospitalMessage(`✅ ${data.message}`)
+        setHospitalCodeInput('')
+        fetchHospitalLink()
+        // 유저 정보 갱신
+        const meRes = await fetchAuthMe()
+        if (meRes.ok) {
+          const meData = await meRes.json()
+          if (meData.user) setUser(meData.user)
+        }
+        setTimeout(() => { setShowHospitalModal(false); setHospitalMessage('') }, 2500)
+      } else {
+        setHospitalMessage(`❌ ${data.error}`)
+      }
+    } catch {
+      setHospitalMessage('❌ 서버 연결 오류')
+    } finally {
+      setHospitalLinking(false)
+    }
+  }
+
   const handleLogout = async () => {
     if (confirm('로그아웃 하시겠습니까?')) {
       await fetch('/api/auth/logout', { method: 'POST' })
       await removeToken()
       router.push('/login')
     }
+  }
+
+  function formatDate(dateStr: string | null) {
+    if (!dateStr) return '-'
+    return new Date(dateStr).toLocaleDateString('ko-KR')
   }
 
   if (loading) {
@@ -86,6 +165,65 @@ export default function SettingsPage() {
               <p className="text-xs text-[#0284C7] mt-1">{subscriptionLabel}</p>
             </div>
           </div>
+        </div>
+
+        {/* Hospital Link Section */}
+        <div className="bg-white rounded-lg shadow-sm">
+          <h2 className="font-semibold text-gray-900 px-6 py-4 border-b">🏥 병원 연결</h2>
+
+          {hospitalLink?.linked ? (
+            <div className="p-6">
+              <div className="bg-blue-50 rounded-lg p-4 mb-3">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">🏥</span>
+                  <div>
+                    <p className="font-bold text-gray-900">{hospitalLink.hospital?.name}</p>
+                    <p className="text-xs text-gray-500 font-mono">{hospitalLink.hospital_code}</p>
+                  </div>
+                </div>
+                {hospitalLink.patient && (
+                  <div className="mt-3 pt-3 border-t border-blue-100 space-y-1.5 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">프로그램</span>
+                      <span className="font-semibold text-blue-700">{hospitalLink.patient.program_week}주차 / 12주</span>
+                    </div>
+                    {hospitalLink.patient.diagnosis && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">진단명</span>
+                        <span>{hospitalLink.patient.diagnosis}</span>
+                      </div>
+                    )}
+                    {hospitalLink.patient.surgery_type && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">시술</span>
+                        <span>{hospitalLink.patient.surgery_type}</span>
+                      </div>
+                    )}
+                    {hospitalLink.patient.trainer_name && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">담당 트레이너</span>
+                        <span>{hospitalLink.patient.trainer_name}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">종료 예정</span>
+                      <span>{formatDate(hospitalLink.patient.program_end_date)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-6">
+              <p className="text-sm text-gray-500 mb-3">병원에서 받은 코드를 입력하면 12주 무료 재활 프로그램에 참여할 수 있습니다.</p>
+              <button
+                onClick={() => setShowHospitalModal(true)}
+                className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2"
+              >
+                <span>🏥</span> 병원코드 등록하기
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Account Settings */}
@@ -205,6 +343,54 @@ export default function SettingsPage() {
           로그아웃
         </button>
       </main>
+
+      {/* 병원코드 등록 모달 */}
+      {showHospitalModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-5">
+          <div className="bg-white rounded-2xl p-7 w-full max-w-sm">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-bold">🏥 병원코드 등록</h3>
+              <button onClick={() => { setShowHospitalModal(false); setHospitalMessage('') }} className="text-gray-400 text-xl">✕</button>
+            </div>
+
+            <form onSubmit={handleLinkHospital}>
+              <p className="text-sm text-gray-500 mb-4">병원에서 발급받은 코드를 입력해주세요.</p>
+              <input
+                type="text"
+                placeholder="PLT-12345678"
+                value={hospitalCodeInput}
+                onChange={e => {
+                  let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                  if (v.length > 3 && !v.includes('-')) v = v.slice(0, 3) + '-' + v.slice(3)
+                  setHospitalCodeInput(v)
+                }}
+                required
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-center text-lg font-mono tracking-wider focus:border-blue-500 focus:outline-none"
+              />
+
+              {hospitalMessage && (
+                <div className={`mt-3 p-3 rounded-lg text-sm ${hospitalMessage.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                  {hospitalMessage}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={hospitalLinking || !hospitalCodeInput}
+                className="w-full mt-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition"
+              >
+                {hospitalLinking ? '연결 중...' : '코드 등록'}
+              </button>
+            </form>
+
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-xs text-blue-600 text-center">
+                💡 코드를 입력하면 12주 무료 재활 프로그램이 시작됩니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav role={user.role || 'patient'} />
     </div>
