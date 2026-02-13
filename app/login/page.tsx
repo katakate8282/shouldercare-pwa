@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
-import { supabase } from '@/lib/supabase/client'
 
 const ERROR_MESSAGES: Record<string, string> = {
   no_code: '인증 코드를 받지 못했습니다.',
@@ -31,32 +30,35 @@ function LoginContent() {
     if (errorCode) {
       setError(ERROR_MESSAGES[errorCode] || '오류가 발생했습니다.')
     }
-  }, [searchParams])
+
+    // 콜백에서 돌아온 경우 토큰 저장
+    const token = searchParams.get('token')
+    const redirect = searchParams.get('redirect')
+    if (token) {
+      localStorage.setItem('sc_token', token)
+      router.push(redirect || '/dashboard')
+    }
+  }, [searchParams, router])
 
   // 이미 로그인된 경우 리다이렉트
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.push('/dashboard')
-      }
-    })
+    const token = localStorage.getItem('sc_token')
+    if (token) {
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => {
+          if (res.ok) router.push('/dashboard')
+          else localStorage.removeItem('sc_token')
+        })
+        .catch(() => localStorage.removeItem('sc_token'))
+    }
   }, [router])
 
-  const handleKakaoLogin = async () => {
+  const handleKakaoLogin = () => {
     setIsLoading(true)
     setError(null)
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'kakao',
-      options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`,
-      },
-    })
-
-    if (error) {
-      setError('카카오 로그인에 실패했습니다.')
-      setIsLoading(false)
-    }
+    window.location.href = '/api/auth/kakao'
   }
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -68,7 +70,7 @@ function LoginContent() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -77,15 +79,9 @@ function LoginContent() {
         return
       }
 
-      // Supabase Auth 세션 설정
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (signInError) {
-        // Supabase Auth에 유저가 없으면 기존 방식 fallback
-        // 세션은 서버에서 이미 처리됨
+      // localStorage에 토큰 저장
+      if (data.token) {
+        localStorage.setItem('sc_token', data.token)
       }
 
       router.push(data.redirect || '/dashboard')
@@ -101,43 +97,24 @@ function LoginContent() {
     setError(null)
 
     try {
-      // Supabase Auth로 회원가입
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { name },
-          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
-        },
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
       })
-
-      if (authError) {
-        setError(authError.message || '회원가입에 실패했습니다.')
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || '회원가입에 실패했습니다.')
         setIsLoading(false)
         return
       }
 
-      // users 테이블에도 프로필 생성
-      if (authData.user) {
-        const res = await fetch('/api/auth/signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            authId: authData.user.id,
-            email,
-            name,
-          })
-        })
-
-        if (!res.ok) {
-          const data = await res.json()
-          setError(data.error || '프로필 생성에 실패했습니다.')
-          setIsLoading(false)
-          return
-        }
+      // localStorage에 토큰 저장
+      if (data.token) {
+        localStorage.setItem('sc_token', data.token)
       }
 
-      router.push('/onboarding')
+      router.push(data.redirect || '/onboarding')
     } catch (err) {
       setError('네트워크 오류가 발생했습니다.')
       setIsLoading(false)

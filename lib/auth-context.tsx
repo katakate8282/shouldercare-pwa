@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { supabase } from '@/lib/supabase/client'
 
 interface User {
   id: string
@@ -33,27 +32,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
-      // Supabase Auth 세션 확인
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (session?.access_token) {
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setUser(data.user)
-          setLoading(false)
-          return
-        }
+      const token = localStorage.getItem('sc_token')
+      if (!token) {
+        setUser(null)
+        setLoading(false)
+        return
       }
 
-      // Fallback: 기존 쿠키 세션
-      const res = await fetch('/api/auth/me')
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
       if (res.ok) {
         const data = await res.json()
         setUser(data.user)
       } else {
+        // 토큰 만료 등
+        localStorage.removeItem('sc_token')
         setUser(null)
       }
     } catch {
@@ -65,21 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchUser()
-
-    // Supabase Auth 상태 변경 리스너
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        fetchUser()
-      } else {
-        setUser(null)
-      }
-    })
-
-    return () => subscription.unsubscribe()
   }, [])
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    localStorage.removeItem('sc_token')
     await fetch('/api/auth/logout', { method: 'POST' })
     setUser(null)
     window.location.href = '/login'

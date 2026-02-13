@@ -4,12 +4,25 @@ import crypto from 'crypto'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
 function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password).digest('hex')
+}
+
+function generateToken(userId: string, email: string): string {
+  const payload = {
+    userId,
+    email,
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    iat: Date.now(),
+  }
+  const secret = process.env.TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'shouldercare-secret'
+  const data = JSON.stringify(payload)
+  const signature = crypto.createHmac('sha256', secret).update(data).digest('hex')
+  return Buffer.from(JSON.stringify({ data: payload, sig: signature })).toString('base64url')
 }
 
 export async function POST(request: NextRequest) {
@@ -20,8 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이메일과 비밀번호를 입력해주세요.' }, { status: 400 })
     }
 
-    // 기존 users 테이블에서 유저 확인
-    const { data: user, error: dbError } = await supabaseAdmin
+    const { data: user, error: dbError } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
@@ -35,32 +47,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
     }
 
-    // Supabase Auth에 유저가 없으면 마이그레이션
-    if (!user.auth_id) {
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { name: user.name },
-      })
-
-      if (!authError && authData.user) {
-        await supabaseAdmin
-          .from('users')
-          .update({ auth_id: authData.user.id, updated_at: new Date().toISOString() })
-          .eq('id', user.id)
-      }
-    }
-
-    await supabaseAdmin
+    await supabase
       .from('users')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', user.id)
 
     const redirect = user.onboarding_completed === true ? '/dashboard' : '/onboarding'
+    const token = generateToken(user.id, user.email)
 
     return NextResponse.json({
       success: true,
+      token,
       user: { id: user.id, email: user.email, name: user.name },
       redirect,
     })
