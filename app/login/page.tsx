@@ -1,7 +1,6 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState, useRef, Suspense } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { saveToken, getToken } from '@/lib/token-storage'
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -14,12 +13,19 @@ const ERROR_MESSAGES: Record<string, string> = {
   auth_failed: '로그인에 실패했습니다.',
 }
 
-function LoginContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+function getInitialView(): 'splash' | 'main' {
+  if (typeof window !== 'undefined') {
+    try {
+      if (sessionStorage.getItem('sc_splash_done')) return 'main'
+    } catch {}
+  }
+  return 'splash'
+}
+
+export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [view, setView] = useState<'splash' | 'main' | 'email-login' | 'email-signup' | 'hospital-code'>('splash')
+  const [view, setView] = useState<'splash' | 'main' | 'email-login' | 'email-signup' | 'hospital-code'>(getInitialView)
   const [splashFading, setSplashFading] = useState(false)
 
   const [email, setEmail] = useState('')
@@ -27,21 +33,27 @@ function LoginContent() {
   const [name, setName] = useState('')
   const [hospitalCode, setHospitalCode] = useState('')
 
-  // 인증 체크 + 콜백 처리
   const initDone = useRef(false)
+  const splashDone = useRef(false)
+
+  // 인증 체크 + 콜백 처리
   useEffect(() => {
     if (initDone.current) return
     initDone.current = true
 
-    const errorCode = searchParams.get('error')
+    const params = new URLSearchParams(window.location.search)
+
+    const errorCode = params.get('error')
     if (errorCode) {
       setError(ERROR_MESSAGES[errorCode] || '오류가 발생했습니다.')
-      setView('main')
+      try { sessionStorage.setItem('sc_splash_done', '1') } catch {}
+      setSplashFading(true)
+      setTimeout(() => setView('main'), 300)
       return
     }
 
-    const token = searchParams.get('token')
-    const redirect = searchParams.get('redirect')
+    const token = params.get('token')
+    const redirect = params.get('redirect')
     if (token) {
       saveToken(token).then(() => {
         window.location.href = redirect || '/dashboard'
@@ -49,7 +61,6 @@ function LoginContent() {
       return
     }
 
-    // 이미 로그인된 경우 체크
     getToken().then((existingToken) => {
       if (existingToken) {
         fetch('/api/auth/me', {
@@ -63,23 +74,25 @@ function LoginContent() {
           .catch(() => {})
       }
     })
-  }, [searchParams])
+  }, [])
 
-  // 스플래시 타이머 (한번만 실행, 3초 후 메인으로)
-  const splashDone = useRef(false)
+  // 스플래시 타이머
   useEffect(() => {
     if (splashDone.current) return
     splashDone.current = true
 
+    if (view !== 'splash') return
+
     const timer = setTimeout(() => {
       setSplashFading(true)
       setTimeout(() => {
+        try { sessionStorage.setItem('sc_splash_done', '1') } catch {}
         setView('main')
       }, 500)
     }, 2500)
 
     return () => clearTimeout(timer)
-  }, [])
+  }, [view])
 
   const handleKakaoLogin = () => {
     setIsLoading(true)
@@ -409,22 +422,4 @@ function LoginContent() {
   }
 
   return null
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-28 h-28 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl">
-            <span className="text-6xl">🏥</span>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-3">어깨케어</h1>
-          <p className="text-blue-100 text-lg">AI 기반 어깨 재활 전문 플랫폼</p>
-        </div>
-      </div>
-    }>
-      <LoginContent />
-    </Suspense>
-  )
 }
