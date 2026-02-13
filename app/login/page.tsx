@@ -13,19 +13,22 @@ const ERROR_MESSAGES: Record<string, string> = {
   auth_failed: '로그인에 실패했습니다.',
 }
 
-function getInitialView(): 'splash' | 'main' {
-  if (typeof window !== 'undefined') {
-    try {
-      if (sessionStorage.getItem('sc_splash_done')) return 'main'
-    } catch {}
-  }
-  return 'splash'
+function shouldSkipSplash(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const ua = navigator.userAgent.toLowerCase()
+    if (ua.includes('kakaotalk') || ua.includes('kakao')) return true
+    if (sessionStorage.getItem('sc_splash_done')) return true
+  } catch {}
+  return false
 }
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [view, setView] = useState<'splash' | 'main' | 'email-login' | 'email-signup' | 'hospital-code'>(getInitialView)
+  const [view, setView] = useState<'splash' | 'main' | 'email-login' | 'email-signup' | 'hospital-code'>(() => {
+    return shouldSkipSplash() ? 'main' : 'splash'
+  })
   const [splashFading, setSplashFading] = useState(false)
 
   const [email, setEmail] = useState('')
@@ -80,7 +83,6 @@ export default function LoginPage() {
   useEffect(() => {
     if (splashDone.current) return
     splashDone.current = true
-
     if (view !== 'splash') return
 
     const timer = setTimeout(() => {
