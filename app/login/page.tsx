@@ -26,15 +26,17 @@ function LoginContent() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [hospitalCode, setHospitalCode] = useState('')
-  const [authChecked, setAuthChecked] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
-  // 인증 체크 (백그라운드)
+  // 인증 체크 + 콜백 처리
+  const initDone = useRef(false)
   useEffect(() => {
+    if (initDone.current) return
+    initDone.current = true
+
     const errorCode = searchParams.get('error')
     if (errorCode) {
       setError(ERROR_MESSAGES[errorCode] || '오류가 발생했습니다.')
-      setAuthChecked(true)
+      setView('main')
       return
     }
 
@@ -42,7 +44,7 @@ function LoginContent() {
     const redirect = searchParams.get('redirect')
     if (token) {
       saveToken(token).then(() => {
-        router.push(redirect || '/dashboard')
+        window.location.href = redirect || '/dashboard'
       })
       return
     }
@@ -55,30 +57,31 @@ function LoginContent() {
         })
           .then((res) => {
             if (res.ok) {
-              router.push("/dashboard"); return
+              window.location.href = '/dashboard'
             }
-            setAuthChecked(true)
           })
-          .catch(() => setAuthChecked(true))
-      } else {
-        setAuthChecked(true)
+          .catch(() => {})
       }
     })
-  }, [searchParams, router])
+  }, [searchParams])
 
-  // 스플래시 타이머 (한번만 실행)
+  // 스플래시 타이머 (한번만 실행, 3초 후 메인으로)
   const splashDone = useRef(false)
   useEffect(() => {
     if (splashDone.current) return
     splashDone.current = true
+
     const timer = setTimeout(() => {
       setSplashFading(true)
       setTimeout(() => {
         setView('main')
       }, 500)
     }, 2500)
+
     return () => clearTimeout(timer)
-  }, [])  const handleKakaoLogin = () => {
+  }, [])
+
+  const handleKakaoLogin = () => {
     setIsLoading(true)
     setError(null)
     window.location.href = '/api/auth/kakao'
@@ -106,7 +109,7 @@ function LoginContent() {
         await saveToken(data.token)
       }
 
-      router.push(data.redirect || '/dashboard')
+      window.location.href = data.redirect || '/dashboard'
     } catch (err) {
       setError('네트워크 오류가 발생했습니다.')
       setIsLoading(false)
@@ -135,7 +138,7 @@ function LoginContent() {
         await saveToken(data.token)
       }
 
-      router.push(data.redirect || '/onboarding')
+      window.location.href = data.redirect || '/onboarding'
     } catch (err) {
       setError('네트워크 오류가 발생했습니다.')
       setIsLoading(false)
