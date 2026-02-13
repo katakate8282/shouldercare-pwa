@@ -67,12 +67,31 @@ export async function POST(request: NextRequest) {
 
     const token = generateToken(user.id, user.email)
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       token,
       user: { id: user.id, email: user.email, name: user.name },
       redirect: '/onboarding',
     })
+
+    // 쿠키도 동시에 설정 (standalone PWA 백업용)
+    response.cookies.set('session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
+
+    response.cookies.set('user_id', user.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
+
+    return response
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json({ error: '회원가입 처리 중 오류가 발생했습니다.' }, { status: 500 })

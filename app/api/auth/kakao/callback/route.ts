@@ -118,7 +118,26 @@ export async function GET(request: NextRequest) {
     loginUrl.searchParams.set('token', token)
     loginUrl.searchParams.set('redirect', redirectPath)
 
-    return NextResponse.redirect(loginUrl)
+    const response = NextResponse.redirect(loginUrl)
+
+    // 쿠키도 동시에 설정 (standalone PWA 백업용)
+    response.cookies.set('session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
+
+    response.cookies.set('user_id', userId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
+
+    return response
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.redirect(new URL('/login?error=unexpected_error', request.url))

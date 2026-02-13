@@ -49,25 +49,40 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '세션이 만료되었습니다.' }, { status: 401 })
     }
 
-    // 2. Fallback: 기존 쿠키 세션 (하위 호환)
+    // 2. Fallback: 쿠키 세션 확인
     const sessionCookie = request.cookies.get('session')
     if (sessionCookie) {
-      const sessionData = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString())
-      if (sessionData.exp < Date.now()) {
-        return NextResponse.json({ error: '세션이 만료되었습니다.' }, { status: 401 })
+      // 새 토큰 형식 시도
+      const tokenPayload = verifyToken(sessionCookie.value)
+      if (tokenPayload) {
+        const { data: user, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', tokenPayload.userId)
+          .single()
+
+        if (!error && user) {
+          return NextResponse.json({ user })
+        }
       }
 
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', sessionData.userId)
-        .single()
+      // 기존 base64 형식 시도 (하위 호환)
+      try {
+        const sessionData = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString())
+        if (sessionData.exp >= Date.now()) {
+          const { data: user, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', sessionData.userId)
+            .single()
 
-      if (error || !user) {
-        return NextResponse.json({ error: '사용자를 찾을 수 없습니다.' }, { status: 404 })
+          if (!error && user) {
+            return NextResponse.json({ user })
+          }
+        }
+      } catch {
+        // 파싱 실패 무시
       }
-
-      return NextResponse.json({ user })
     }
 
     return NextResponse.json({ user: null }, { status: 401 })
