@@ -393,14 +393,14 @@ export default function DashboardPage() {
           </div>
 
           {/* 관리 메뉴 */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => router.push('/admin')}
               className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow"
             >
               <span className="text-xl mb-1.5 block">⚙️</span>
               <p className="font-semibold text-gray-900 text-sm">관리자</p>
-              <p className="text-xs text-gray-600">트레이너·환자·회원 관리</p>
+              <p className="text-xs text-gray-600">회원·트레이너 관리</p>
             </button>
             <button
               onClick={() => router.push('/admin/reports')}
@@ -409,14 +409,6 @@ export default function DashboardPage() {
               <span className="text-xl mb-1.5 block">📊</span>
               <p className="font-semibold text-gray-900 text-sm">통계 리포트</p>
               <p className="text-xs text-gray-600">성과 분석·PDF</p>
-            </button>
-            <button
-              onClick={() => router.push('/trainer')}
-              className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow"
-            >
-              <span className="text-xl mb-1.5 block">👨‍⚕️</span>
-              <p className="font-semibold text-gray-900 text-sm">트레이너</p>
-              <p className="text-xs text-gray-600">환자 관리</p>
             </button>
             <button
               onClick={() => router.push('/messages')}
