@@ -4,6 +4,7 @@ import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import BottomNav from '@/components/BottomNav'
 
 interface User {
   id: string
@@ -110,7 +111,6 @@ export default function MyStatsPage() {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
-    // 이번 주 운동 수
     const { data: logs } = await supabase
       .from('exercise_logs')
       .select('*')
@@ -120,7 +120,6 @@ export default function MyStatsPage() {
     const weekCount = logs?.length || 0
     setWeekExercises(weekCount)
 
-    // 처방 목표
     const { data: prescriptions } = await supabase
       .from('prescriptions')
       .select('frequency_per_week')
@@ -150,7 +149,6 @@ export default function MyStatsPage() {
   }
 
   const fetchStreak = async (userId: string) => {
-    // 최근 60일 운동 기록으로 스트릭 계산
     const sixtyDaysAgo = new Date()
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
 
@@ -166,22 +164,18 @@ export default function MyStatsPage() {
       return
     }
 
-    // 날짜별 그룹화 (KST)
     const exerciseDates = new Set<string>()
     logs.forEach(log => {
       const date = new Date(log.completed_at)
-      // KST 변환
       date.setHours(date.getHours() + 9)
       exerciseDates.add(date.toISOString().split('T')[0])
     })
 
-    // 오늘부터 거꾸로 연속 일수 계산
     let count = 0
     const today = new Date()
     today.setHours(today.getHours() + 9)
     const todayStr = today.toISOString().split('T')[0]
 
-    // 오늘 운동 안 했으면 어제부터 체크
     let checkDate = new Date(today)
     if (!exerciseDates.has(todayStr)) {
       checkDate.setDate(checkDate.getDate() - 1)
@@ -201,7 +195,6 @@ export default function MyStatsPage() {
   }
 
   const fetchXP = async (userId: string) => {
-    // XP 계산: 운동 1회 = 10XP, 통증 기록 = 5XP
     const { count: exerciseCount } = await supabase
       .from('exercise_logs')
       .select('*', { count: 'exact', head: true })
@@ -220,7 +213,6 @@ export default function MyStatsPage() {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
-    // 모든 환자
     const { data: patients } = await supabase
       .from('users')
       .select('id, name')
@@ -228,13 +220,11 @@ export default function MyStatsPage() {
 
     if (!patients) return
 
-    // 모든 운동 기록
     const { data: allLogs } = await supabase
       .from('exercise_logs')
       .select('user_id')
       .gte('completed_at', weekAgo.toISOString())
 
-    // 모든 처방
     const { data: allPrescriptions } = await supabase
       .from('prescriptions')
       .select('patient_id, frequency_per_week')
@@ -254,7 +244,6 @@ export default function MyStatsPage() {
       }
     })
 
-    // 달성률 높은 순 → 운동 수 높은 순
     rankList.sort((a, b) => {
       if (b.achievementRate !== a.achievementRate) return b.achievementRate - a.achievementRate
       return b.weekExercises - a.weekExercises
@@ -486,43 +475,7 @@ export default function MyStatsPage() {
 
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t">
-        <div className="max-w-lg mx-auto px-4 flex justify-around py-3">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="flex flex-col items-center gap-1 text-gray-400"
-          >
-            <span className="text-xl">🏠</span>
-            <span className="text-xs">홈</span>
-          </button>
-          <button
-            onClick={() => router.push('/exercises')}
-            className="flex flex-col items-center gap-1 text-gray-400"
-          >
-            <span className="text-xl">💪</span>
-            <span className="text-xs">운동</span>
-          </button>
-          <button className="flex flex-col items-center gap-1 text-blue-500">
-            <span className="text-xl">📊</span>
-            <span className="text-xs font-medium">내 기록</span>
-          </button>
-          <button
-            onClick={() => router.push('/progress')}
-            className="flex flex-col items-center gap-1 text-gray-400"
-          >
-            <span className="text-xl">📈</span>
-            <span className="text-xs">진행상황</span>
-          </button>
-          <button
-            onClick={() => router.push('/settings')}
-            className="flex flex-col items-center gap-1 text-gray-400"
-          >
-            <span className="text-xl">⚙️</span>
-            <span className="text-xs">설정</span>
-          </button>
-        </div>
-      </nav>
+      <BottomNav role={user.role || 'patient'} />
     </div>
   )
 }

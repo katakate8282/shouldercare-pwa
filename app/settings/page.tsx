@@ -4,12 +4,14 @@ import { fetchAuthMe } from '@/lib/fetch-auth'
 import { removeToken } from '@/lib/token-storage'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import BottomNav from '@/components/BottomNav'
 
 interface User {
   id: string
   name: string
   email: string
   subscription_type?: string
+  role?: string
 }
 
 export default function SettingsPage() {
@@ -204,26 +206,7 @@ export default function SettingsPage() {
         </button>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t">
-        <div className="max-w-7xl mx-auto px-4 flex justify-around py-3">
-          <button onClick={() => router.push('/dashboard')} className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">🏠</span>
-            <span className="text-xs">홈</span>
-          </button>
-          <button onClick={() => router.push('/exercises')} className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">💪</span>
-            <span className="text-xs">운동</span>
-          </button>
-          <button onClick={() => router.push('/progress')} className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">📈</span>
-            <span className="text-xs">진행상황</span>
-          </button>
-          <button className="flex flex-col items-center gap-1 text-blue-500">
-            <span className="text-xl">⚙️</span>
-            <span className="text-xs font-medium">설정</span>
-          </button>
-        </div>
-      </nav>
+      <BottomNav role={user.role || 'patient'} />
     </div>
   )
 }

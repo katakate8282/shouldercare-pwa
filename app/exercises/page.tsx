@@ -1,10 +1,12 @@
 'use client'
 
+import { fetchAuthMe } from '@/lib/fetch-auth'
 import { getExercises, getCategories, getDifficultyColor, getCategoryDisplayName, getSignedThumbnailUrl } from '@/lib/data/exercises'
 import type { Exercise } from '@/lib/data/exercises'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 export default function ExercisesPage() {
   const router = useRouter()
@@ -13,8 +15,17 @@ export default function ExercisesPage() {
   const [categories, setCategories] = useState<string[]>([])
   const [thumbnails, setThumbnails] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
+  const [userRole, setUserRole] = useState<string>('patient')
 
   useEffect(() => {
+    // 역할 정보 가져오기
+    fetchAuthMe()
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.user?.role) setUserRole(data.user.role)
+      })
+      .catch(() => {})
+
     const load = async () => {
       const [exData, catData] = await Promise.all([
         getExercises(),
@@ -170,27 +181,7 @@ export default function ExercisesPage() {
         )}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t">
-        <div className="max-w-7xl mx-auto px-4 flex justify-around py-3">
-          <Link href="/dashboard" className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">🏠</span>
-            <span className="text-xs">홈</span>
-          </Link>
-          <button className="flex flex-col items-center gap-1 text-blue-500">
-            <span className="text-xl">💪</span>
-            <span className="text-xs font-medium">운동</span>
-          </button>
-          <Link href="/progress" className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">📈</span>
-            <span className="text-xs">진행상황</span>
-          </Link>
-          <Link href="/settings" className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">⚙️</span>
-            <span className="text-xs">설정</span>
-          </Link>
-        </div>
-      </nav>
+      <BottomNav role={userRole} />
     </div>
   )
 }

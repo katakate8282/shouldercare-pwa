@@ -5,6 +5,7 @@ import { removeToken } from '@/lib/token-storage'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import BottomNav from '@/components/BottomNav'
 
 interface User {
   id: string
@@ -125,8 +126,6 @@ export default function DashboardPage() {
     setShowDisclaimer(false)
   }
 
-  // 면책 조항 팝업 (첫 실행 시)
-
   // Realtime 구독 (환자/트레이너)
   useEffect(() => {
     if (!user || user.role === 'admin') return
@@ -154,28 +153,24 @@ export default function DashboardPage() {
 
   // ===== 관리자용 데이터 =====
   const fetchAdminStats = async () => {
-    // KST 오늘 시작
     const now = new Date()
     const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
     const kstToday = new Date(kstNow)
     kstToday.setHours(0, 0, 0, 0)
     const kstTodayUTC = new Date(kstToday.getTime() - 9 * 60 * 60 * 1000).toISOString()
 
-    // 전체 환자 수
     const { count: pCount } = await supabase
       .from('users')
       .select('*', { count: 'exact', head: true })
       .not('role', 'in', '("trainer","admin")')
     setTotalPatients(pCount || 0)
 
-    // 전체 트레이너 수
     const { count: tCount } = await supabase
       .from('users')
       .select('*', { count: 'exact', head: true })
       .eq('role', 'trainer')
     setTotalTrainers(tCount || 0)
 
-    // 오늘 운동한 유저 수
     const { data: todayExLogs } = await supabase
       .from('exercise_logs')
       .select('user_id')
@@ -183,7 +178,6 @@ export default function DashboardPage() {
     const exUsers = new Set(todayExLogs?.map(l => l.user_id) || [])
     setTodayExerciseUsers(exUsers.size)
 
-    // 오늘 통증 기록한 유저 수
     const { data: todayPnLogs } = await supabase
       .from('pain_logs')
       .select('user_id')
@@ -191,7 +185,6 @@ export default function DashboardPage() {
     const pnUsers = new Set(todayPnLogs?.map(l => l.user_id) || [])
     setTodayPainUsers(pnUsers.size)
 
-    // 주간 트렌드 (최근 4주)
     await fetchWeekTrend()
   }
 
@@ -241,7 +234,6 @@ export default function DashboardPage() {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
-    // 배정된 환자 조회
     const { data: assignData } = await supabase
       .from('patient_assignments')
       .select('patient_id')
@@ -257,7 +249,6 @@ export default function DashboardPage() {
         .order('name')
       setTrainerPatients(pData || [])
 
-      // 오늘 환자 활동
       const { data: exLogs } = await supabase
         .from('exercise_logs')
         .select('user_id, exercise_name, sets_completed, reps_completed')
@@ -276,7 +267,6 @@ export default function DashboardPage() {
       setTrainerPatientActivities(acts)
     }
 
-    // 이번 주 트레이너 활동
     const { count: rxCount } = await supabase
       .from('prescriptions')
       .select('*', { count: 'exact', head: true })
@@ -301,7 +291,6 @@ export default function DashboardPage() {
       notes: noteCount || 0,
     })
 
-    // 읽지 않은 메시지
     const { count: unread } = await supabase
       .from('messages')
       .select('*', { count: 'exact', head: true })
@@ -325,7 +314,6 @@ export default function DashboardPage() {
       const weekCount = exerciseData?.length || 0
       setWeekExercises(weekCount)
 
-      // 목표 달성률
       const { data: rxData } = await supabase
         .from('prescriptions')
         .select('frequency_per_week')
@@ -338,7 +326,6 @@ export default function DashboardPage() {
         setAchievementRate(totalTarget > 0 ? Math.min(Math.round((weekCount / totalTarget) * 100), 100) : 0)
       }
 
-      // 통증 변화
       const { data: painLogs } = await supabase
         .from('pain_logs')
         .select('pain_level, logged_at')
@@ -449,7 +436,7 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
-      await removeToken()
+    await removeToken()
     router.push('/login')
   }
 
@@ -575,31 +562,7 @@ export default function DashboardPage() {
           </div>
         </main>
 
-        {/* Admin Bottom Nav */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t">
-          <div className="max-w-7xl mx-auto px-4 flex justify-around py-3">
-            <button className="flex flex-col items-center gap-1 text-blue-500">
-              <span className="text-xl">🏠</span>
-              <span className="text-xs font-medium">홈</span>
-            </button>
-            <button onClick={() => router.push('/admin')} className="flex flex-col items-center gap-1 text-gray-400">
-              <span className="text-xl">⚙️</span>
-              <span className="text-xs">관리</span>
-            </button>
-            <button onClick={() => router.push('/messages')} className="flex flex-col items-center gap-1 text-gray-400">
-              <span className="text-xl">💬</span>
-              <span className="text-xs">메시지</span>
-            </button>
-            <button onClick={() => router.push('/admin/reports')} className="flex flex-col items-center gap-1 text-gray-400">
-              <span className="text-xl">📊</span>
-              <span className="text-xs">리포트</span>
-            </button>
-            <button onClick={() => router.push('/settings')} className="flex flex-col items-center gap-1 text-gray-400">
-              <span className="text-xl">⚙️</span>
-              <span className="text-xs">설정</span>
-            </button>
-          </div>
-        </nav>
+        <BottomNav role="admin" unreadCount={unreadCount} />
       </div>
     )
   }
@@ -639,7 +602,6 @@ export default function DashboardPage() {
               <p className="font-semibold text-sm">운동 보기</p>
             </button>
             <button onClick={() => {
-              // 관리자에게 메시지
               const findAdmin = async () => {
                 const { data } = await supabase.from('users').select('id').eq('role', 'admin').limit(1)
                 if (data && data[0]) router.push(`/messages/${data[0].id}`)
@@ -712,7 +674,6 @@ export default function DashboardPage() {
             </div>
             {(() => {
               const patientIds = trainerPatients.map(p => p.id)
-              // 유저별 운동 그룹화
               const userExMap: Record<string, { exercises: string[]; count: number }> = {}
               const userPainMap: Record<string, number> = {}
 
@@ -823,36 +784,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Trainer Bottom Nav */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t">
-          <div className="max-w-7xl mx-auto px-4 flex justify-around py-3">
-            <button className="flex flex-col items-center gap-1 text-blue-500">
-              <span className="text-xl">🏠</span>
-              <span className="text-xs font-medium">홈</span>
-            </button>
-            <button onClick={() => router.push('/trainer')} className="flex flex-col items-center gap-1 text-gray-400">
-              <span className="text-xl">👨‍⚕️</span>
-              <span className="text-xs">환자관리</span>
-            </button>
-            <button onClick={() => router.push('/messages')} className="flex flex-col items-center gap-1 text-gray-400 relative">
-              <span className="text-xl">💬</span>
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-              <span className="text-xs">메시지</span>
-            </button>
-            <button onClick={() => router.push('/exercises')} className="flex flex-col items-center gap-1 text-gray-400">
-              <span className="text-xl">💪</span>
-              <span className="text-xs">운동</span>
-            </button>
-            <button onClick={() => router.push('/settings')} className="flex flex-col items-center gap-1 text-gray-400">
-              <span className="text-xl">⚙️</span>
-              <span className="text-xs">설정</span>
-            </button>
-          </div>
-        </nav>
+        <BottomNav role="trainer" unreadCount={unreadCount} />
       </div>
     )
   }
@@ -920,7 +852,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 이번 주 리포트 카드 (클릭→내 기록) */}
+        {/* 이번 주 리포트 카드 */}
         <button
           onClick={() => router.push('/my-stats')}
           className="w-full bg-white rounded-lg shadow-sm p-4 text-left hover:shadow-md transition"
@@ -1084,52 +1016,10 @@ export default function DashboardPage() {
             <p className="font-semibold text-gray-900 text-sm">통증 기록</p>
             <p className="text-xs text-gray-600">오늘 통증 수준 입력</p>
           </button>
-          {user.role === 'trainer' && (
-            <button
-              onClick={() => router.push('/trainer')}
-              className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow"
-            >
-              <span className="text-xl mb-1.5 block">👨‍⚕️</span>
-              <p className="font-semibold text-gray-900 text-sm">트레이너</p>
-              <p className="text-xs text-gray-600">환자 관리</p>
-            </button>
-          )}
         </div>
       </main>
 
-      {/* Patient Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t">
-        <div className="max-w-7xl mx-auto px-4 flex justify-around py-3">
-          <button className="flex flex-col items-center gap-1 text-blue-500">
-            <span className="text-xl">🏠</span>
-            <span className="text-xs font-medium">홈</span>
-          </button>
-          <button onClick={() => router.push('/exercises')} className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">💪</span>
-            <span className="text-xs">운동</span>
-          </button>
-          <button
-            onClick={() => trainerId && router.push(`/messages/${trainerId}`)}
-            className="flex flex-col items-center gap-1 text-gray-400 relative"
-          >
-            <span className="text-xl">💬</span>
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-            <span className="text-xs">메시지</span>
-          </button>
-          <button onClick={() => router.push('/progress')} className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">📈</span>
-            <span className="text-xs">진행상황</span>
-          </button>
-          <button onClick={() => router.push('/settings')} className="flex flex-col items-center gap-1 text-gray-400">
-            <span className="text-xl">⚙️</span>
-            <span className="text-xs">설정</span>
-          </button>
-        </div>
-      </nav>
+      <BottomNav role="patient" unreadCount={unreadCount} trainerId={trainerId} />
     </div>
   )
 }
