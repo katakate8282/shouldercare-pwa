@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
+import { saveToken, getToken } from '@/lib/token-storage'
 
 const ERROR_MESSAGES: Record<string, string> = {
   no_code: '인증 코드를 받지 못했습니다.',
@@ -35,24 +36,25 @@ function LoginContent() {
     const token = searchParams.get('token')
     const redirect = searchParams.get('redirect')
     if (token) {
-      localStorage.setItem('sc_token', token)
-      router.push(redirect || '/dashboard')
+      saveToken(token).then(() => {
+        router.push(redirect || '/dashboard')
+      })
     }
   }, [searchParams, router])
 
   // 이미 로그인된 경우 리다이렉트
   useEffect(() => {
-    const token = localStorage.getItem('sc_token')
-    if (token) {
-      fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => {
-          if (res.ok) router.push('/dashboard')
-          else localStorage.removeItem('sc_token')
+    getToken().then((token) => {
+      if (token) {
+        fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
         })
-        .catch(() => localStorage.removeItem('sc_token'))
-    }
+          .then((res) => {
+            if (res.ok) router.push('/dashboard')
+          })
+          .catch(() => {})
+      }
+    })
   }, [router])
 
   const handleKakaoLogin = () => {
@@ -79,9 +81,8 @@ function LoginContent() {
         return
       }
 
-      // localStorage에 토큰 저장
       if (data.token) {
-        localStorage.setItem('sc_token', data.token)
+        await saveToken(data.token)
       }
 
       router.push(data.redirect || '/dashboard')
@@ -109,9 +110,8 @@ function LoginContent() {
         return
       }
 
-      // localStorage에 토큰 저장
       if (data.token) {
-        localStorage.setItem('sc_token', data.token)
+        await saveToken(data.token)
       }
 
       router.push(data.redirect || '/onboarding')

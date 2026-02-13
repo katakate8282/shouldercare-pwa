@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { saveToken, getToken, removeToken } from '@/lib/token-storage'
 
 interface User {
   id: string
@@ -32,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
-      const token = localStorage.getItem('sc_token')
+      const token = await getToken()
       if (!token) {
         setUser(null)
         setLoading(false)
@@ -47,8 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await res.json()
         setUser(data.user)
       } else {
-        // 토큰 만료 등
-        localStorage.removeItem('sc_token')
+        await removeToken()
         setUser(null)
       }
     } catch {
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = async () => {
-    localStorage.removeItem('sc_token')
+    await removeToken()
     await fetch('/api/auth/logout', { method: 'POST' })
     setUser(null)
     window.location.href = '/login'
