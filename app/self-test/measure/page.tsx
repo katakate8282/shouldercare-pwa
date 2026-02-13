@@ -25,19 +25,131 @@ type MeasureStep = 'intro' | 'flexion' | 'abduction' | 'external_rotation' | 'do
 const STEP_INFO: Record<string, { title: string; instruction: string; emoji: string }> = {
   flexion: {
     title: '굴곡 (Flexion)',
-    instruction: '카메라 앞에 서서 아픈 쪽 팔을 앞으로 천천히 올려주세요',
+    instruction: '아픈 쪽 팔을 앞으로 천천히 올려주세요',
     emoji: '☝️',
   },
   abduction: {
     title: '외전 (Abduction)',
-    instruction: '카메라 앞에 서서 아픈 쪽 팔을 옆으로 천천히 올려주세요',
+    instruction: '아픈 쪽 팔을 옆으로 천천히 올려주세요',
     emoji: '🤸',
   },
   external_rotation: {
     title: '외회전 (External Rotation)',
-    instruction: '팔꿈치를 90° 구부린 채 몸에 붙이고, 전완을 바깥으로 회전해주세요',
+    instruction: '팔꿈치를 90° 구부려 몸에 붙이고, 전완을 바깥으로 돌려주세요',
     emoji: '🔄',
   },
+}
+
+// ===== 애니메이션 SVG 가이드 컴포넌트 =====
+function FlexionGuide({ size = 160 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 120 120" width={size} height={size}>
+      {/* 몸통 */}
+      <circle cx="60" cy="25" r="10" fill="#94A3B8" /> {/* 머리 */}
+      <line x1="60" y1="35" x2="60" y2="75" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" /> {/* 몸 */}
+      <line x1="60" y1="75" x2="45" y2="105" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" /> {/* 왼다리 */}
+      <line x1="60" y1="75" x2="75" y2="105" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" /> {/* 오른다리 */}
+      {/* 고정 팔 (왼쪽) */}
+      <line x1="60" y1="45" x2="40" y2="65" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      {/* 움직이는 팔 (오른쪽) - 아래→위 앞으로 */}
+      <line x1="60" y1="45" x2="60" y2="45" stroke="#0EA5E9" strokeWidth="3.5" strokeLinecap="round">
+        <animate attributeName="x2" values="80;75;60;50;45" dur="2.5s" repeatCount="indefinite" />
+        <animate attributeName="y2" values="65;55;35;20;10" dur="2.5s" repeatCount="indefinite" />
+      </line>
+      {/* 손 끝 원 */}
+      <circle cx="80" cy="65" r="3" fill="#0EA5E9">
+        <animate attributeName="cx" values="80;75;60;50;45" dur="2.5s" repeatCount="indefinite" />
+        <animate attributeName="cy" values="65;55;35;20;10" dur="2.5s" repeatCount="indefinite" />
+      </circle>
+      {/* 화살표 궤적 */}
+      <path d="M 78 60 Q 65 35 48 12" fill="none" stroke="#0EA5E9" strokeWidth="1.5" strokeDasharray="4,3" opacity="0.5" />
+      <polygon points="45,10 50,18 42,16" fill="#0EA5E9" opacity="0.7">
+        <animate attributeName="opacity" values="0.3;0.9;0.3" dur="2.5s" repeatCount="indefinite" />
+      </polygon>
+      {/* 각도 표시 */}
+      <path d="M 60 55 Q 65 50 68 45" fill="none" stroke="#F59E0B" strokeWidth="1.5" />
+      <text x="72" y="48" fontSize="8" fill="#F59E0B" fontWeight="bold">θ</text>
+    </svg>
+  )
+}
+
+function AbductionGuide({ size = 160 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 120 120" width={size} height={size}>
+      {/* 몸통 (정면) */}
+      <circle cx="60" cy="25" r="10" fill="#94A3B8" />
+      <line x1="60" y1="35" x2="60" y2="75" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      <line x1="60" y1="75" x2="45" y2="105" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      <line x1="60" y1="75" x2="75" y2="105" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      {/* 고정 팔 (왼쪽) */}
+      <line x1="60" y1="45" x2="40" y2="65" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      {/* 움직이는 팔 (오른쪽) - 옆으로 올리기 */}
+      <line x1="60" y1="45" x2="60" y2="45" stroke="#0EA5E9" strokeWidth="3.5" strokeLinecap="round">
+        <animate attributeName="x2" values="80;88;92;90;85" dur="2.5s" repeatCount="indefinite" />
+        <animate attributeName="y2" values="65;50;38;25;15" dur="2.5s" repeatCount="indefinite" />
+      </line>
+      {/* 손 끝 원 */}
+      <circle cx="80" cy="65" r="3" fill="#0EA5E9">
+        <animate attributeName="cx" values="80;88;92;90;85" dur="2.5s" repeatCount="indefinite" />
+        <animate attributeName="cy" values="65;50;38;25;15" dur="2.5s" repeatCount="indefinite" />
+      </circle>
+      {/* 화살표 궤적 */}
+      <path d="M 78 62 Q 92 40 87 15" fill="none" stroke="#0EA5E9" strokeWidth="1.5" strokeDasharray="4,3" opacity="0.5" />
+      <polygon points="85,12 90,20 82,18" fill="#0EA5E9" opacity="0.7">
+        <animate attributeName="opacity" values="0.3;0.9;0.3" dur="2.5s" repeatCount="indefinite" />
+      </polygon>
+      {/* 각도 표시 */}
+      <path d="M 60 55 Q 68 50 72 44" fill="none" stroke="#F59E0B" strokeWidth="1.5" />
+      <text x="74" y="47" fontSize="8" fill="#F59E0B" fontWeight="bold">θ</text>
+    </svg>
+  )
+}
+
+function ExternalRotationGuide({ size = 160 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 120 120" width={size} height={size}>
+      {/* 몸통 (정면) */}
+      <circle cx="60" cy="25" r="10" fill="#94A3B8" />
+      <line x1="60" y1="35" x2="60" y2="75" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      <line x1="60" y1="75" x2="45" y2="105" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      <line x1="60" y1="75" x2="75" y2="105" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      {/* 고정 팔 (왼쪽) */}
+      <line x1="60" y1="45" x2="40" y2="65" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
+      {/* 상완 (몸에 붙임) */}
+      <line x1="60" y1="45" x2="75" y2="55" stroke="#0EA5E9" strokeWidth="3.5" strokeLinecap="round" />
+      {/* 팔꿈치 점 */}
+      <circle cx="75" cy="55" r="3" fill="#F59E0B" />
+      {/* 전완 (회전) - 몸 앞→바깥으로 */}
+      <line x1="75" y1="55" x2="75" y2="55" stroke="#0EA5E9" strokeWidth="3.5" strokeLinecap="round">
+        <animate attributeName="x2" values="60;65;75;88;100" dur="2.5s" repeatCount="indefinite" />
+        <animate attributeName="y2" values="55;50;42;42;50" dur="2.5s" repeatCount="indefinite" />
+      </line>
+      {/* 손 끝 원 */}
+      <circle cx="60" cy="55" r="3" fill="#0EA5E9">
+        <animate attributeName="cx" values="60;65;75;88;100" dur="2.5s" repeatCount="indefinite" />
+        <animate attributeName="cy" values="55;50;42;42;50" dur="2.5s" repeatCount="indefinite" />
+      </circle>
+      {/* 회전 화살표 */}
+      <path d="M 62 58 Q 70 38 98 48" fill="none" stroke="#0EA5E9" strokeWidth="1.5" strokeDasharray="4,3" opacity="0.5" />
+      <polygon points="98,45 100,53 94,50" fill="#0EA5E9" opacity="0.7">
+        <animate attributeName="opacity" values="0.3;0.9;0.3" dur="2.5s" repeatCount="indefinite" />
+      </polygon>
+      {/* 90도 표시 */}
+      <rect x="72" y="52" width="6" height="6" fill="none" stroke="#F59E0B" strokeWidth="1" />
+      <text x="68" y="70" fontSize="7" fill="#F59E0B" fontWeight="bold">90°</text>
+      {/* 회전 방향 텍스트 */}
+      <text x="80" y="32" fontSize="6" fill="#0EA5E9" fontWeight="bold">바깥으로→</text>
+    </svg>
+  )
+}
+
+function getGuideComponent(step: string, size?: number) {
+  switch (step) {
+    case 'flexion': return <FlexionGuide size={size} />
+    case 'abduction': return <AbductionGuide size={size} />
+    case 'external_rotation': return <ExternalRotationGuide size={size} />
+    default: return null
+  }
 }
 
 // 각도 계산 유틸
@@ -65,6 +177,7 @@ export default function MeasurePage() {
   const [cameraError, setCameraError] = useState('')
   const [poseLoaded, setPoseLoaded] = useState(false)
   const [surveyData, setSurveyData] = useState<any>(null)
+  const [showGuideOverlay, setShowGuideOverlay] = useState(false)
 
   const maxAngleRef = useRef(0)
   const holdStartRef = useRef<number | null>(null)
@@ -103,7 +216,6 @@ export default function MeasurePage() {
         })
       }
 
-      // Pose 초기화
       setTimeout(() => {
         if (window.Pose) {
           setPoseLoaded(true)
@@ -154,13 +266,11 @@ export default function MeasurePage() {
         ctx.save()
         ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
 
-        // 미러링
         ctx.translate(canvasRef.current.width, 0)
         ctx.scale(-1, 1)
         ctx.drawImage(results.image, 0, 0, canvasRef.current.width, canvasRef.current.height)
         ctx.restore()
 
-        // 스켈레톤 그리기
         if (window.drawConnectors && window.POSE_CONNECTIONS) {
           ctx.save()
           ctx.translate(canvasRef.current.width, 0)
@@ -170,23 +280,19 @@ export default function MeasurePage() {
           ctx.restore()
         }
 
-        // 각도 계산
         const lm = results.poseLandmarks
         let angle = 0
 
         if (measureStep === 'flexion' || measureStep === 'abduction') {
-          // 어깨(11/12) - 팔꿈치(13/14) vs 어깨-힙(23/24)
-          const shoulder = lm[12] // 오른쪽 (카메라 미러 기준)
+          const shoulder = lm[12]
           const elbow = lm[14]
           const hip = lm[24]
           angle = calcAngle(elbow, shoulder, hip)
         } else if (measureStep === 'external_rotation') {
-          // 외회전: 어깨-팔꿈치-손목 각도에서 외회전 추정
           const shoulder = lm[12]
           const elbow = lm[14]
           const wrist = lm[16]
           const rawAngle = calcAngle(shoulder, elbow, wrist)
-          // 외회전은 팔꿈치 90도 기준 전완 회전이므로 보정
           angle = Math.max(0, Math.min(90, Math.abs(rawAngle - 90)))
         }
 
@@ -197,7 +303,6 @@ export default function MeasurePage() {
             setMaxAngle(angle)
           }
 
-          // 최대 각도 근처 2초 유지 시 캡처
           if (!capturedRef.current && angle >= maxAngleRef.current - 5 && maxAngleRef.current > 20) {
             if (!holdStartRef.current) {
               holdStartRef.current = Date.now()
@@ -207,7 +312,6 @@ export default function MeasurePage() {
 
             if (elapsed >= 2) {
               capturedRef.current = true
-              // 측정 완료
               const key = measureStep as keyof RomResult
               setRom(prev => ({ ...prev, [key]: maxAngleRef.current }))
             }
@@ -220,7 +324,6 @@ export default function MeasurePage() {
 
       poseRef.current = pose
 
-      // 프레임 전송
       const sendFrame = async () => {
         if (videoRef.current && poseRef.current && videoRef.current.readyState >= 2) {
           await poseRef.current.send({ image: videoRef.current })
@@ -239,7 +342,6 @@ export default function MeasurePage() {
     }
   }, [measureStep])
 
-  // 카메라 정리
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop())
@@ -248,7 +350,7 @@ export default function MeasurePage() {
     setCameraReady(false)
   }, [])
 
-  // 다음 측정 단계
+  // 다음 측정 단계 (가이드 먼저 보여주기)
   const nextMeasureStep = () => {
     maxAngleRef.current = 0
     holdStartRef.current = null
@@ -259,17 +361,20 @@ export default function MeasurePage() {
 
     if (measureStep === 'intro') {
       setMeasureStep('flexion')
+      setShowGuideOverlay(true)
     } else if (measureStep === 'flexion') {
       setMeasureStep('abduction')
+      setShowGuideOverlay(true)
     } else if (measureStep === 'abduction') {
       setMeasureStep('external_rotation')
+      setShowGuideOverlay(true)
     } else if (measureStep === 'external_rotation') {
       stopCamera()
       setMeasureStep('done')
     }
   }
 
-  // 카메라 시작 (측정 시작 시)
+  // 카메라 시작
   useEffect(() => {
     if (measureStep !== 'intro' && measureStep !== 'done' && poseLoaded) {
       startCamera()
@@ -279,13 +384,11 @@ export default function MeasurePage() {
     }
   }, [measureStep, poseLoaded, startCamera, stopCamera])
 
-  // 측정 완료 → 결과 페이지로
   const goToResult = () => {
     sessionStorage.setItem('selftest_rom', JSON.stringify(rom))
     router.push('/self-test/result')
   }
 
-  // 수동 캡처 (2초 유지 못할 경우 대비)
   const manualCapture = () => {
     if (maxAngleRef.current > 10) {
       capturedRef.current = true
@@ -294,7 +397,6 @@ export default function MeasurePage() {
     }
   }
 
-  // 건너뛰기 (카메라 안될 때)
   const skipMeasurement = () => {
     stopCamera()
     sessionStorage.setItem('selftest_rom', JSON.stringify({ flexion: null, abduction: null, external_rotation: null }))
@@ -315,23 +417,27 @@ export default function MeasurePage() {
         </header>
 
         <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 flex flex-col">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #F59E0B, #FBBF24)' }}>
-              <span className="text-4xl">📸</span>
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'linear-gradient(135deg, #F59E0B, #FBBF24)' }}>
+              <span className="text-3xl">📸</span>
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">카메라 ROM 측정</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-1">카메라 ROM 측정</h2>
             <p className="text-sm text-slate-500">3가지 동작으로 어깨 가동범위를 측정합니다</p>
           </div>
 
-          <div className="space-y-3 mb-8">
+          {/* 3개 동작 애니메이션 가이드 */}
+          <div className="space-y-3 mb-6">
             {['flexion', 'abduction', 'external_rotation'].map((key, idx) => (
-              <div key={key} className="bg-white rounded-xl p-4 shadow-sm flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: '#FEF3C7' }}>
-                  {STEP_INFO[key].emoji}
+              <div key={key} className="bg-white rounded-xl p-4 shadow-sm flex items-center gap-4">
+                <div className="shrink-0">
+                  {getGuideComponent(key, 80)}
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{idx + 1}. {STEP_INFO[key].title}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{STEP_INFO[key].instruction}</p>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-800 mb-0.5">
+                    <span className="text-sky-500 mr-1">{idx + 1}.</span>
+                    {STEP_INFO[key].title}
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{STEP_INFO[key].instruction}</p>
                 </div>
               </div>
             ))}
@@ -442,6 +548,41 @@ export default function MeasurePage() {
 
   return (
     <div className="min-h-screen bg-black flex flex-col">
+      {/* 동작 가이드 오버레이 */}
+      {showGuideOverlay && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-5 text-center">
+              <p className="text-xs font-semibold text-sky-600 mb-1">
+                {measureStep === 'flexion' ? '1' : measureStep === 'abduction' ? '2' : '3'}/3
+              </p>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">{stepInfo.title}</h3>
+              <p className="text-sm text-slate-500 mb-4">{stepInfo.instruction}</p>
+
+              <div className="flex justify-center mb-4 bg-slate-50 rounded-xl py-4">
+                {getGuideComponent(measureStep, 140)}
+              </div>
+
+              <div className="bg-amber-50 rounded-lg p-3 mb-4 text-left">
+                <p className="text-xs text-amber-800">
+                  {measureStep === 'flexion' && '💡 카메라를 옆에서 보이도록 서세요. 팔을 앞으로 최대한 올려주세요.'}
+                  {measureStep === 'abduction' && '💡 카메라를 정면에서 보이도록 서세요. 팔을 옆으로 최대한 올려주세요.'}
+                  {measureStep === 'external_rotation' && '💡 팔꿈치를 옆구리에 붙인 채 90° 구부리고, 전완만 바깥으로 돌려주세요.'}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowGuideOverlay(false)}
+                className="w-full py-3.5 rounded-xl text-white font-bold text-sm"
+                style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
+              >
+                준비 완료, 측정 시작
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-black/80 backdrop-blur-sm px-4 py-3 flex items-center justify-between z-10">
         <button onClick={() => { stopCamera(); router.push('/self-test') }} className="text-white">
@@ -453,7 +594,9 @@ export default function MeasurePage() {
             {measureStep === 'flexion' ? '1' : measureStep === 'abduction' ? '2' : '3'}/3
           </p>
         </div>
-        <button onClick={skipMeasurement} className="text-white/60 text-xs">건너뛰기</button>
+        <button onClick={() => setShowGuideOverlay(true)} className="text-white/80 text-xs bg-white/20 px-2 py-1 rounded-lg">
+          가이드
+        </button>
       </div>
 
       {/* 카메라 에러 */}
@@ -475,10 +618,13 @@ export default function MeasurePage() {
           <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} playsInline muted />
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
 
-          {/* 안내 오버레이 */}
-          <div className="absolute top-4 left-4 right-4">
-            <div className="bg-black/60 backdrop-blur-sm rounded-xl px-4 py-3">
-              <p className="text-white text-sm text-center">{stepInfo.instruction}</p>
+          {/* 상단 안내 + 미니 가이드 */}
+          <div className="absolute top-3 left-3 right-3">
+            <div className="bg-black/60 backdrop-blur-sm rounded-xl px-3 py-2 flex items-center gap-2">
+              <div className="shrink-0 bg-white/10 rounded-lg p-1">
+                {getGuideComponent(measureStep, 44)}
+              </div>
+              <p className="text-white text-xs flex-1">{stepInfo.instruction}</p>
             </div>
           </div>
 
@@ -487,7 +633,6 @@ export default function MeasurePage() {
             <div className="bg-black/70 backdrop-blur-sm rounded-2xl px-6 py-4 text-center">
               <p className="text-5xl font-bold text-white">{currentAngle}°</p>
               <p className="text-xs text-white/60 mt-1">최대: {maxAngle}°</p>
-              {/* 홀드 프로그레스 */}
               {holdTimer > 0 && !isCaptured && (
                 <div className="mt-2 w-32 h-1.5 bg-white/20 rounded-full mx-auto overflow-hidden">
                   <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${(holdTimer / 2) * 100}%` }} />
