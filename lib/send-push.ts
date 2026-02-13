@@ -5,10 +5,14 @@ export async function sendPushToUser(
   url?: string
 ) {
   try {
-    const secret = process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 32)
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000'
+    const secret = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 32)
+
+    let baseUrl = 'http://localhost:3000'
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+      baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+    } else if (process.env.VERCEL_URL) {
+      baseUrl = `https://${process.env.VERCEL_URL}`
+    }
 
     await fetch(`${baseUrl}/api/send-push`, {
       method: 'POST',

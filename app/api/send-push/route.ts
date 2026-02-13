@@ -11,11 +11,15 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    // 내부 호출용 시크릿 키 확인 (외부 접근 방지)
     const { userId, title, body, url, secret } = await req.json()
 
-    const expectedSecret = process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 32)
-    if (secret !== expectedSecret) {
+    // 인증: CRON_SECRET 또는 SERVICE_ROLE_KEY 앞 32자
+    const validSecrets = [
+      process.env.CRON_SECRET,
+      process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 32),
+    ].filter(Boolean)
+
+    if (!secret || !validSecrets.includes(secret)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -23,7 +27,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'userId, title, body required' }, { status: 400 })
     }
 
-    // 해당 유저의 FCM 토큰 조회
     const { data: tokens } = await supabase
       .from('fcm_tokens')
       .select('token')
@@ -52,7 +55,6 @@ export async function POST(req: NextRequest) {
         })
         sent++
       } catch (err: any) {
-        // 만료/무효 토큰 정리
         if (
           err?.code === 'messaging/invalid-registration-token' ||
           err?.code === 'messaging/registration-token-not-registered'
@@ -63,7 +65,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 무효 토큰 삭제
     if (invalidTokens.length > 0) {
       await supabase
         .from('fcm_tokens')

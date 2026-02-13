@@ -18,12 +18,36 @@ export async function requestNotificationPermission(): Promise<string | null> {
   try {
     if (typeof window === 'undefined') return null
     if (!('Notification' in window)) return null
+    if (!('serviceWorker' in navigator)) return null
 
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return null
 
+    // SW가 등록되고 활성화될 때까지 대기
+    let swRegistration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js')
+
+    if (!swRegistration) {
+      swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    }
+
+    // SW가 active 상태가 될 때까지 대기
+    if (swRegistration.installing || swRegistration.waiting) {
+      await new Promise<void>((resolve) => {
+        const sw = swRegistration!.installing || swRegistration!.waiting
+        if (!sw) { resolve(); return }
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'activated') resolve()
+        })
+        // 이미 activated면 바로
+        if (sw.state === 'activated') resolve()
+      })
+    }
+
     const messaging = getMessaging(app)
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY })
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: swRegistration,
+    })
     return token
   } catch (error) {
     console.error('FCM token error:', error)
