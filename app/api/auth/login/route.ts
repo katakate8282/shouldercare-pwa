@@ -4,7 +4,9 @@ import crypto from 'crypto'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+})
 
 function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password).digest('hex')
@@ -18,7 +20,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이메일과 비밀번호를 입력해주세요.' }, { status: 400 })
     }
 
-    const { data: user, error: dbError } = await supabase
+    // 기존 users 테이블에서 유저 확인
+    const { data: user, error: dbError } = await supabaseAdmin
       .from('users')
       .select('*')
       .eq('email', email)
@@ -32,43 +35,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 })
     }
 
-    await supabase
+    // Supabase Auth에 유저가 없으면 마이그레이션
+    if (!user.auth_id) {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name: user.name },
+      })
+
+      if (!authError && authData.user) {
+        await supabaseAdmin
+          .from('users')
+          .update({ auth_id: authData.user.id, updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+      }
+    }
+
+    await supabaseAdmin
       .from('users')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', user.id)
 
     const redirect = user.onboarding_completed === true ? '/dashboard' : '/onboarding'
 
-    const sessionData = {
-      userId: user.id,
-      email: user.email,
-      exp: Date.now() + 7 * 24 * 60 * 60 * 1000
-    }
-    const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64')
-
-    const response = NextResponse.json({
+    return NextResponse.json({
       success: true,
       user: { id: user.id, email: user.email, name: user.name },
-      redirect
+      redirect,
     })
-
-    response.cookies.set('session', sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7
-    })
-
-    response.cookies.set('user_id', user.id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7
-    })
-
-    return response
   } catch (error) {
     console.error('Login error:', error)
     return NextResponse.json({ error: '로그인 처리 중 오류가 발생했습니다.' }, { status: 500 })

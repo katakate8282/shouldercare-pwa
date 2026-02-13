@@ -1,46 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex')
-}
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name } = await request.json()
+    const body = await request.json()
+    const { authId, email, name } = body
 
-    if (!email || !password || !name) {
-      return NextResponse.json({ error: '이름, 이메일, 비밀번호를 모두 입력해주세요.' }, { status: 400 })
+    if (!email || !name) {
+      return NextResponse.json({ error: '이름과 이메일을 입력해주세요.' }, { status: 400 })
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: '비밀번호는 6자 이상이어야 합니다.' }, { status: 400 })
-    }
-
-    const { data: existingUser } = await supabase
+    // 이미 존재하는지 확인
+    const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id')
       .eq('email', email)
       .single()
 
     if (existingUser) {
-      return NextResponse.json({ error: '이미 가입된 이메일입니다.' }, { status: 409 })
+      // 기존 유저에 auth_id 연결
+      if (authId) {
+        await supabaseAdmin
+          .from('users')
+          .update({ auth_id: authId, updated_at: new Date().toISOString() })
+          .eq('id', existingUser.id)
+      }
+      return NextResponse.json({
+        success: true,
+        user: { id: existingUser.id },
+        redirect: '/onboarding',
+      })
     }
 
-    const { data: user, error: dbError } = await supabase
+    // 새 유저 생성
+    const { data: user, error: dbError } = await supabaseAdmin
       .from('users')
       .insert({
+        auth_id: authId || null,
         email,
         name,
-        password_hash: hashPassword(password),
         onboarding_completed: false,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single()
@@ -50,36 +57,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '회원가입 처리 중 오류가 발생했습니다.' }, { status: 500 })
     }
 
-    const sessionData = {
-      userId: user.id,
-      email: user.email,
-      exp: Date.now() + 7 * 24 * 60 * 60 * 1000
-    }
-    const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64')
-
-    const response = NextResponse.json({
+    return NextResponse.json({
       success: true,
       user: { id: user.id, email: user.email, name: user.name },
-      redirect: '/onboarding'
+      redirect: '/onboarding',
     })
-
-    response.cookies.set('session', sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7
-    })
-
-    response.cookies.set('user_id', user.id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7
-    })
-
-    return response
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json({ error: '회원가입 처리 중 오류가 발생했습니다.' }, { status: 500 })
