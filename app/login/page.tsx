@@ -497,7 +497,7 @@ export default function LoginPage() {
 
             <form onSubmit={handleHospitalCode} className="space-y-4">
               <input type="text" placeholder="PLT-67967963" value={hospitalCode}
-                onChange={(e) => setHospitalCode(e.target.value.toUpperCase())} required
+                onChange={(e) => { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); if (v.length > 3 && !v.includes("-")) v = v.slice(0,3) + "-" + v.slice(3); setHospitalCode(v) }} required
                 className="w-full px-4 py-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg font-mono tracking-wider" />
               <button type="submit" disabled={isLoading || !hospitalCode}
                 className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white font-bold py-4 rounded-xl transition">
