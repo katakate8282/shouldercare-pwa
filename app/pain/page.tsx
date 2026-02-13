@@ -20,7 +20,8 @@ export default function PainLogPage() {
   const [selectedPatterns, setSelectedPatterns] = useState<string[]>([])
   const [notes, setNotes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-
+  const [showEmergency, setShowEmergency] = useState(false)
+  const [painSpike, setPainSpike] = useState<{ current: number; previous: number } | null>(null)
   useEffect(() => {
     fetchAuthMe()
       .then(res => {
@@ -114,6 +115,17 @@ export default function PainLogPage() {
       localStorage.setItem('painLogs', JSON.stringify([...existingLogs, painLog]))
 
       setIsSaving(false)
+      // 통증 급증 감지
+      if (painLevel >= 8) {
+        // 이전 기록과 비교
+        const { data: prevLogs } = await supabase.from('pain_logs').select('pain_level').eq('user_id', user.id).order('logged_at', { ascending: false }).range(1, 3)
+        const prevAvg = prevLogs && prevLogs.length > 0 ? prevLogs.reduce((s: number, l: any) => s + l.pain_level, 0) / prevLogs.length : 0
+        if (painLevel >= 8 || (prevAvg > 0 && painLevel - prevAvg >= 3)) {
+          setPainSpike({ current: painLevel, previous: Math.round(prevAvg) })
+          setShowEmergency(true)
+          return
+        }
+      }
       alert('통증 기록이 저장되었습니다! ✅')
       router.push('/dashboard')
     } catch (error) {
