@@ -67,6 +67,7 @@ export default function DashboardPage() {
 
   // 면책 조항 동의 상태
   const [showDisclaimer, setShowDisclaimer] = useState(false)
+  const [showPremiumModal, setShowPremiumModal] = useState(false)
 
   // FCM 푸시 알림 등록
   usePushNotification(user?.id ?? null)
@@ -878,6 +879,37 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* 프리미엄 구독 유도 팝업 */}
+      {showPremiumModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-sky-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">프리미엄 기능입니다</h3>
+              <p className="text-sm text-gray-500 mb-1">트레이너 1:1 메시지와 맞춤 운동 제안을</p>
+              <p className="text-sm text-gray-500 mb-6">이용하려면 프리미엄 구독이 필요해요.</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setShowPremiumModal(false); router.push('/subscribe') }}
+                  className="w-full py-3 rounded-xl text-white font-bold text-sm"
+                  style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
+                >
+                  구독 알아보기
+                </button>
+                <button
+                  onClick={() => setShowPremiumModal(false)}
+                  className="w-full py-3 rounded-xl text-gray-500 font-medium text-sm hover:bg-gray-50"
+                >
+                  다음에 할게요
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header (Aqua Blue Gradient) ── */}
       <header style={{ background: 'linear-gradient(135deg, #0284C7 0%, #0EA5E9 50%, #38BDF8 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between">
@@ -971,17 +1003,24 @@ export default function DashboardPage() {
         <div className="grid grid-cols-3 gap-2">
           {/* 메시지 */}
           <button
-            onClick={() => trainerId ? router.push(`/messages/${trainerId}`) : router.push('/messages')}
+            onClick={() => {
+              if (!subStatus.isPremium) { setShowPremiumModal(true); return }
+              trainerId ? router.push(`/messages/${trainerId}`) : router.push('/messages')
+            }}
             className="bg-white rounded-xl p-2.5 text-center shadow-sm hover:shadow-md transition relative"
           >
-            {unreadCount > 0 && (
+            {!subStatus.isPremium && (
+              <span className="absolute top-1.5 right-1.5 text-[10px]">🔒</span>
+            )}
+            {subStatus.isPremium && unreadCount > 0 && (
               <span className="absolute top-1.5 right-2 w-1.5 h-1.5 bg-red-500 rounded-full" />
             )}
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-1" style={{ backgroundColor: '#E0F2FE' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-1" style={{ backgroundColor: !subStatus.isPremium ? '#F1F5F9' : '#E0F2FE' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={!subStatus.isPremium ? '#94A3B8' : '#0284C7'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
-            <p className="text-[11px] font-semibold text-slate-800">메시지</p>
-            {unreadCount > 0 && <p className="text-[9px] text-red-500 font-medium">{unreadCount}건</p>}
+            <p className={`text-[11px] font-semibold ${!subStatus.isPremium ? 'text-slate-400' : 'text-slate-800'}`}>메시지</p>
+            {subStatus.isPremium && unreadCount > 0 && <p className="text-[9px] text-red-500 font-medium">{unreadCount}건</p>}
+            {!subStatus.isPremium && <p className="text-[9px] text-slate-400">프리미엄</p>}
           </button>
 
           {/* 통증 기록 */}
@@ -1057,7 +1096,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── 트레이너 코멘트 ── */}
-        {trainerNotes.length > 0 && (
+        {trainerNotes.length > 0 && subStatus.isPremium && (
           <div>
             <p className="text-sm font-bold text-slate-800 mb-1.5">트레이너 코멘트</p>
             <div className="space-y-1.5">

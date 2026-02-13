@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import { checkSubscription } from '@/lib/subscription'
 
 interface User {
   id: string
   name: string
   email: string
   role?: string
+  subscription_type?: string
+  subscription_expires_at?: string | null
 }
 
 interface ChatRoom {
@@ -162,6 +165,37 @@ export default function MessagesListPage() {
 
     // 그 외
     return date.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })
+  }
+
+  const subStatus = user ? checkSubscription(user as any) : null
+
+  // 무료 유저는 메시지 접근 차단
+  if (!loading && user && subStatus && !subStatus.isPremium && user.role !== 'admin' && user.role !== 'trainer') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center shadow-lg">
+          <div className="w-16 h-16 bg-sky-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">프리미엄 기능입니다</h3>
+          <p className="text-sm text-gray-500 mb-6">트레이너 1:1 메시지는 프리미엄 구독이 필요합니다.</p>
+          <button
+            onClick={() => router.push('/subscribe')}
+            className="w-full py-3 rounded-xl text-white font-bold text-sm mb-2"
+            style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
+          >
+            구독 알아보기
+          </button>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="w-full py-3 rounded-xl text-gray-500 font-medium text-sm hover:bg-gray-50"
+          >
+            돌아가기
+          </button>
+        </div>
+        <BottomNav role={user.role || 'patient'} />
+      </div>
+    )
   }
 
   if (loading) {
