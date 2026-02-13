@@ -26,13 +26,15 @@ function LoginContent() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [hospitalCode, setHospitalCode] = useState('')
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
-  // 콜백 토큰 처리 + 이미 로그인된 경우 체크
+  // 인증 체크 (백그라운드)
   useEffect(() => {
     const errorCode = searchParams.get('error')
     if (errorCode) {
       setError(ERROR_MESSAGES[errorCode] || '오류가 발생했습니다.')
-      setView('main')
+      setAuthChecked(true)
       return
     }
 
@@ -45,7 +47,7 @@ function LoginContent() {
       return
     }
 
-    // 이미 로그인된 경우
+    // 이미 로그인된 경우 체크
     getToken().then((existingToken) => {
       if (existingToken) {
         fetch('/api/auth/me', {
@@ -53,26 +55,32 @@ function LoginContent() {
         })
           .then((res) => {
             if (res.ok) {
-              router.push('/dashboard')
-            } else {
-              startSplashTimer()
+              setIsLoggedIn(true)
             }
+            setAuthChecked(true)
           })
-          .catch(() => startSplashTimer())
+          .catch(() => setAuthChecked(true))
       } else {
-        startSplashTimer()
+        setAuthChecked(true)
       }
     })
   }, [searchParams, router])
 
-  const startSplashTimer = () => {
-    setTimeout(() => {
+  // 스플래시 타이머 (무조건 3초)
+  useEffect(() => {
+    const timer = setTimeout(() => {
       setSplashFading(true)
       setTimeout(() => {
-        setView('main')
+        if (isLoggedIn) {
+          router.push('/dashboard')
+        } else {
+          setView('main')
+        }
       }, 500)
     }, 2500)
-  }
+
+    return () => clearTimeout(timer)
+  }, [isLoggedIn, router])
 
   const handleKakaoLogin = () => {
     setIsLoading(true)
