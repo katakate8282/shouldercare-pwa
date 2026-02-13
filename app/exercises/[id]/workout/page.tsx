@@ -3,7 +3,8 @@
 import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter, useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { mockExercises } from "@/lib/data/exercises"
+import { getExerciseById, getDifficultyColor } from '@/lib/data/exercises'
+import type { Exercise } from '@/lib/data/exercises'
 import { supabase } from '@/lib/supabase/client'
 
 interface User {
@@ -33,8 +34,9 @@ export default function WorkoutPage() {
   const router = useRouter()
   const params = useParams()
   const exerciseId = params.id as string
-  const exercise = mockExercises.find((e) => e.id === exerciseId)
-
+  
+  const [exercise, setExercise] = useState<Exercise | null>(null)
+  const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
@@ -49,6 +51,18 @@ export default function WorkoutPage() {
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type })
   }
+
+  useEffect(() => {
+    const load = async () => {
+      const id = parseInt(exerciseId)
+      if (!isNaN(id)) {
+        const data = await getExerciseById(id)
+        setExercise(data)
+      }
+      setLoading(false)
+    }
+    load()
+  }, [exerciseId])
 
   useEffect(() => {
     fetchAuthMe()
@@ -89,6 +103,14 @@ export default function WorkoutPage() {
       if (interval) clearInterval(interval)
     }
   }, [isRunning, isPaused, isResting])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">로딩중...</div>
+      </div>
+    )
+  }
 
   if (!exercise) {
     return (
@@ -131,12 +153,12 @@ export default function WorkoutPage() {
     setIsSaving(true)
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabase!
         .from('exercise_logs')
         .insert({
           user_id: user.id,
-          exercise_id: exerciseId,
-          exercise_name: exercise.koreanName,
+          exercise_id: String(exercise.id),
+          exercise_name: exercise.name_ko,
           sets_completed: currentSet,
           reps_completed: currentRep,
           duration_seconds: seconds,
@@ -177,8 +199,8 @@ export default function WorkoutPage() {
               <span className="text-2xl">←</span>
             </button>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">{exercise.koreanName}</h1>
-              <p className="text-xs text-gray-500">{exercise.name}</p>
+              <h1 className="text-lg font-bold text-gray-900">{exercise.name_ko}</h1>
+              {exercise.name_en && <p className="text-xs text-gray-500">{exercise.name_en}</p>}
             </div>
           </div>
         </div>
@@ -187,27 +209,33 @@ export default function WorkoutPage() {
       <main className="max-w-7xl mx-auto px-4 py-4 space-y-4">
         {/* 운동 영상 */}
         <div className="bg-black rounded-xl overflow-hidden shadow-lg">
-          <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-            <iframe
-              src={exercise.demoVideoUrl}
-              title={exercise.koreanName}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="absolute inset-0 w-full h-full"
-            />
-          </div>
+          {exercise.video_url ? (
+            <video
+              src={exercise.video_url}
+              controls
+              playsInline
+              className="w-full aspect-video"
+            >
+              브라우저가 비디오를 지원하지 않습니다.
+            </video>
+          ) : (
+            <div className="aspect-video flex flex-col items-center justify-center bg-gray-800">
+              <span className="text-4xl mb-2">🎬</span>
+              <p className="text-gray-400 text-sm">영상 준비 중</p>
+            </div>
+          )}
         </div>
 
         {/* 운동 정보 */}
         <div className="flex gap-2">
           <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-            {exercise.defaultSets}세트 × {exercise.defaultReps}회
+            {exercise.default_sets}세트{exercise.default_reps ? ` × ${exercise.default_reps}회` : ''}
           </span>
           <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
             {exercise.equipment}
           </span>
-          <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
-            {exercise.difficulty === 'beginner' ? '초급' : exercise.difficulty === 'intermediate' ? '중급' : '고급'}
+          <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(exercise.difficulty)}`}>
+            {exercise.difficulty}
           </span>
         </div>
 
@@ -231,13 +259,13 @@ export default function WorkoutPage() {
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-blue-50 rounded-xl p-4">
                 <div className="text-3xl font-bold text-blue-600 mb-1">
-                  {currentSet} / {exercise.defaultSets}
+                  {currentSet} / {exercise.default_sets}
                 </div>
                 <p className="text-gray-600 text-sm font-medium">세트</p>
               </div>
               <div className="bg-green-50 rounded-xl p-4">
                 <div className="text-3xl font-bold text-green-600 mb-1">
-                  {currentRep} / {exercise.defaultReps}
+                  {currentRep} / {exercise.default_reps || '-'}
                 </div>
                 <p className="text-gray-600 text-sm font-medium">반복</p>
               </div>
@@ -267,14 +295,14 @@ export default function WorkoutPage() {
                       onClick={handleRepComplete}
                       className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl"
                     >
-                      반복 완료 ({currentRep}/{exercise.defaultReps})
+                      반복 완료 ({currentRep}/{exercise.default_reps || '-'})
                     </button>
 
                     <button
                       onClick={handleSetComplete}
                       className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-xl"
                     >
-                      세트 완료 ({currentSet}/{exercise.defaultSets})
+                      세트 완료 ({currentSet}/{exercise.default_sets})
                     </button>
                   </>
                 )}
@@ -291,28 +319,13 @@ export default function WorkoutPage() {
           </div>
         </div>
 
-        {/* 운동 방법 */}
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <h3 className="font-bold text-gray-900 mb-3">📖 운동 방법</h3>
-          <ol className="space-y-2">
-            {exercise.instructions.map((step, i) => (
-              <li key={i} className="flex gap-2 text-sm text-gray-700">
-                <span className="text-blue-500 font-bold">{i + 1}.</span>
-                {step}
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        {/* 운동 팁 */}
-        <div className="bg-blue-50 rounded-xl p-5">
-          <h3 className="font-bold text-gray-900 mb-3">💡 운동 팁</h3>
-          <ul className="space-y-1.5">
-            {exercise.tips.map((tip, i) => (
-              <li key={i} className="text-sm text-gray-700">• {tip}</li>
-            ))}
-          </ul>
-        </div>
+        {/* 운동 설명 */}
+        {exercise.description && (
+          <div className="bg-white rounded-xl shadow-sm p-5">
+            <h3 className="font-bold text-gray-900 mb-3">📖 운동 설명</h3>
+            <p className="text-sm text-gray-700">{exercise.description}</p>
+          </div>
+        )}
       </main>
     </div>
   )
