@@ -36,6 +36,17 @@ interface WeekTrend {
   painLogs: number
 }
 
+interface TrainerPatient {
+  id: string
+  name: string
+  email: string
+  hospital_code?: string
+  diagnosis?: string
+  treatment?: string
+  rehab_goal?: string
+  created_at?: string
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -56,6 +67,12 @@ export default function DashboardPage() {
   const [todayPainUsers, setTodayPainUsers] = useState(0)
   const [weekTrend, setWeekTrend] = useState<WeekTrend[]>([])
 
+  // 트레이너용 state
+  const [trainerPatients, setTrainerPatients] = useState<TrainerPatient[]>([])
+  const [trainerPatientActivities, setTrainerPatientActivities] = useState<{ userId: string; type: string; detail: string }[]>([])
+  const [trainerWeekActivity, setTrainerWeekActivity] = useState({ prescriptions: 0, messages: 0, notes: 0 })
+  const [trainerSelectedPatient, setTrainerSelectedPatient] = useState<TrainerPatient | null>(null)
+
   useEffect(() => {
     fetch('/api/auth/me')
       .then(res => {
@@ -67,6 +84,8 @@ export default function DashboardPage() {
           setUser(data.user)
           if (data.user.role === 'admin') {
             fetchAdminStats()
+          } else if (data.user.role === 'trainer') {
+            fetchTrainerDashboard(data.user.id)
           } else {
             fetchStats(data.user.id)
             fetchPrescriptions(data.user.id)
@@ -81,7 +100,7 @@ export default function DashboardPage() {
       .finally(() => setLoading(false))
   }, [router])
 
-  // Realtime 구독 (환자용)
+  // Realtime 구독 (환자/트레이너)
   useEffect(() => {
     if (!user || user.role === 'admin') return
 
@@ -183,6 +202,85 @@ export default function DashboardPage() {
     }
 
     setWeekTrend(trends)
+  }
+
+  // ===== 트레이너용 데이터 =====
+  const fetchTrainerDashboard = async (trainerId: string) => {
+    const now = new Date()
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+    const kstToday = new Date(kstNow)
+    kstToday.setHours(0, 0, 0, 0)
+    const kstTodayUTC = new Date(kstToday.getTime() - 9 * 60 * 60 * 1000).toISOString()
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+
+    // 배정된 환자 조회
+    const { data: assignData } = await supabase
+      .from('patient_assignments')
+      .select('patient_id')
+      .eq('trainer_id', trainerId)
+
+    const patientIds = assignData?.map(a => a.patient_id) || []
+
+    if (patientIds.length > 0) {
+      const { data: pData } = await supabase
+        .from('users')
+        .select('id, name, email, hospital_code, diagnosis, treatment, rehab_goal, created_at')
+        .in('id', patientIds)
+        .order('name')
+      setTrainerPatients(pData || [])
+
+      // 오늘 환자 활동
+      const { data: exLogs } = await supabase
+        .from('exercise_logs')
+        .select('user_id, exercise_name, sets_completed, reps_completed')
+        .in('user_id', patientIds)
+        .gte('completed_at', kstTodayUTC)
+
+      const { data: pnLogs } = await supabase
+        .from('pain_logs')
+        .select('user_id, pain_level')
+        .in('user_id', patientIds)
+        .gte('logged_at', kstTodayUTC)
+
+      const acts: { userId: string; type: string; detail: string }[] = []
+      exLogs?.forEach(l => acts.push({ userId: l.user_id, type: 'exercise', detail: `${l.exercise_name} ${l.sets_completed}세트×${l.reps_completed}회` }))
+      pnLogs?.forEach(l => acts.push({ userId: l.user_id, type: 'pain', detail: `통증 ${l.pain_level}/10` }))
+      setTrainerPatientActivities(acts)
+    }
+
+    // 이번 주 트레이너 활동
+    const { count: rxCount } = await supabase
+      .from('prescriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('trainer_id', trainerId)
+      .gte('prescribed_at', weekAgo.toISOString())
+
+    const { count: msgCount } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('sender_id', trainerId)
+      .gte('created_at', weekAgo.toISOString())
+
+    const { count: noteCount } = await supabase
+      .from('trainer_notes')
+      .select('*', { count: 'exact', head: true })
+      .eq('trainer_id', trainerId)
+      .gte('created_at', weekAgo.toISOString())
+
+    setTrainerWeekActivity({
+      prescriptions: rxCount || 0,
+      messages: msgCount || 0,
+      notes: noteCount || 0,
+    })
+
+    // 읽지 않은 메시지
+    const { count: unread } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('receiver_id', trainerId)
+      .is('read_at', null)
+    setUnreadCount(unread || 0)
   }
 
   // ===== 환자용 데이터 =====
@@ -450,7 +548,260 @@ export default function DashboardPage() {
     )
   }
 
-  // ===== 환자/트레이너 대시보드 =====
+  // ===== 트레이너 대시보드 =====
+  if (user.role === 'trainer') {
+    return (
+      <div className="min-h-screen bg-gray-50 pb-24">
+        <header className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 className="text-xl font-bold text-gray-900">어깨케어 트레이너</h1>
+            <div className="flex items-center gap-3">
+              <button onClick={() => router.push('/messages')} className="relative text-gray-600">
+                <span className="text-2xl">💬</span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              <button onClick={handleLogout} className="text-gray-600 hover:text-gray-900">
+                <span className="text-2xl">👤</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 py-3 space-y-3">
+          {/* 상단 메뉴 */}
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={() => router.push('/trainer')} className="bg-blue-500 text-white rounded-lg p-3 text-center hover:bg-blue-600 transition">
+              <span className="text-xl block mb-1">👨‍⚕️</span>
+              <p className="font-semibold text-sm">환자 관리</p>
+            </button>
+            <button onClick={() => router.push('/exercises')} className="bg-green-500 text-white rounded-lg p-3 text-center hover:bg-green-600 transition">
+              <span className="text-xl block mb-1">💪</span>
+              <p className="font-semibold text-sm">운동 보기</p>
+            </button>
+            <button onClick={() => {
+              // 관리자에게 메시지
+              const findAdmin = async () => {
+                const { data } = await supabase.from('users').select('id').eq('role', 'admin').limit(1)
+                if (data && data[0]) router.push(`/messages/${data[0].id}`)
+                else router.push('/messages')
+              }
+              findAdmin()
+            }} className="bg-purple-500 text-white rounded-lg p-3 text-center hover:bg-purple-600 transition">
+              <span className="text-xl block mb-1">💬</span>
+              <p className="font-semibold text-sm">관리자 메시지</p>
+            </button>
+          </div>
+
+          {/* 이번 주 트레이너 활동 */}
+          <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg p-4 text-white">
+            <p className="text-xs opacity-80">이번 주 내 활동</p>
+            <div className="flex items-center justify-between mt-1">
+              <div>
+                <p className="text-2xl font-bold">{trainerWeekActivity.prescriptions}건</p>
+                <p className="text-xs opacity-70">처방</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{trainerWeekActivity.messages}건</p>
+                <p className="text-xs opacity-70">메시지</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{trainerWeekActivity.notes}건</p>
+                <p className="text-xs opacity-70">메모</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{trainerPatients.length}명</p>
+                <p className="text-xs opacity-70">담당 환자</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 담당 환자 목록 */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-3 border-b">
+              <h2 className="font-semibold text-gray-900">🏥 담당 환자</h2>
+            </div>
+            {trainerPatients.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 text-sm">배정된 환자가 없습니다</div>
+            ) : (
+              <div className="divide-y">
+                {trainerPatients.map(p => (
+                  <button key={p.id} onClick={() => router.push(`/trainer?patient=${p.id}`)}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900 text-sm">{p.name}</p>
+                        {p.hospital_code && (
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{p.hospital_code}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">
+                        {[p.diagnosis, p.treatment].filter(Boolean).join(' · ') || p.email}
+                      </p>
+                    </div>
+                    <span className="text-gray-400 text-sm">→</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 담당 환자 오늘 활동 피드 */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-3 border-b">
+              <h2 className="font-semibold text-gray-900">📋 오늘의 환자 활동</h2>
+            </div>
+            {(() => {
+              const patientIds = trainerPatients.map(p => p.id)
+              // 유저별 운동 그룹화
+              const userExMap: Record<string, { exercises: string[]; count: number }> = {}
+              const userPainMap: Record<string, number> = {}
+
+              trainerPatientActivities.forEach(act => {
+                if (!patientIds.includes(act.userId)) return
+                if (act.type === 'exercise') {
+                  if (!userExMap[act.userId]) userExMap[act.userId] = { exercises: [], count: 0 }
+                  userExMap[act.userId].exercises.push(act.detail)
+                  userExMap[act.userId].count++
+                } else if (act.type === 'pain') {
+                  const level = parseInt(act.detail.replace(/[^0-9]/g, ''))
+                  if (!isNaN(level)) userPainMap[act.userId] = level
+                }
+              })
+
+              const activePatientIds = new Set([...Object.keys(userExMap), ...Object.keys(userPainMap)])
+              if (activePatientIds.size === 0) {
+                return <div className="p-8 text-center text-gray-400 text-sm">오늘 환자 활동이 없습니다</div>
+              }
+
+              return (
+                <div className="divide-y">
+                  {trainerPatients.map(p => {
+                    const ex = userExMap[p.id]
+                    const pain = userPainMap[p.id]
+                    if (!ex && pain === undefined) return null
+                    return (
+                      <button key={p.id} onClick={() => setTrainerSelectedPatient(p)}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3">
+                        <span className="text-lg">{ex ? '💪' : '😣'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate">
+                            <span className="font-medium text-gray-900">{p.name}</span>
+                            <span className="text-gray-500">
+                              {ex ? ` · ${ex.exercises.join(', ')}` : ''}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {ex && <span className="text-xs text-blue-500">{ex.count}회</span>}
+                          {pain !== undefined && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${pain >= 8 ? 'bg-red-100 text-red-700' : pain >= 5 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                              통증 {pain}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </div>
+        </main>
+
+        {/* 트레이너 회원 상세 모달 */}
+        {trainerSelectedPatient && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h3 className="font-bold text-gray-900">회원 정보</h3>
+                <button onClick={() => setTrainerSelectedPatient(null)} className="text-gray-400 text-xl">✕</button>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center"><span className="text-2xl">👤</span></div>
+                  <div>
+                    <p className="text-lg font-bold text-gray-900">{trainerSelectedPatient.name}</p>
+                    <p className="text-sm text-gray-500">{trainerSelectedPatient.email}</p>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                  {trainerSelectedPatient.hospital_code && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">병원 코드</span>
+                      <span className="font-medium">{trainerSelectedPatient.hospital_code}</span>
+                    </div>
+                  )}
+                  {trainerSelectedPatient.diagnosis && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">진단명</span>
+                      <span className="font-medium">{trainerSelectedPatient.diagnosis}</span>
+                    </div>
+                  )}
+                  {trainerSelectedPatient.treatment && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">시술명</span>
+                      <span className="font-medium">{trainerSelectedPatient.treatment}</span>
+                    </div>
+                  )}
+                  {trainerSelectedPatient.rehab_goal && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">재활 목표</span>
+                      <span className="font-medium">{trainerSelectedPatient.rehab_goal}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">가입일</span>
+                    <span className="font-medium">{trainerSelectedPatient.created_at ? new Date(trainerSelectedPatient.created_at).toLocaleDateString('ko-KR') : '-'}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { router.push(`/messages/${trainerSelectedPatient.id}`); setTrainerSelectedPatient(null) }} className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm hover:bg-blue-600">💬 메시지</button>
+                  <button onClick={() => setTrainerSelectedPatient(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-200">닫기</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Trainer Bottom Nav */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t">
+          <div className="max-w-7xl mx-auto px-4 flex justify-around py-3">
+            <button className="flex flex-col items-center gap-1 text-blue-500">
+              <span className="text-xl">🏠</span>
+              <span className="text-xs font-medium">홈</span>
+            </button>
+            <button onClick={() => router.push('/trainer')} className="flex flex-col items-center gap-1 text-gray-400">
+              <span className="text-xl">👨‍⚕️</span>
+              <span className="text-xs">환자관리</span>
+            </button>
+            <button onClick={() => router.push('/messages')} className="flex flex-col items-center gap-1 text-gray-400 relative">
+              <span className="text-xl">💬</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+              <span className="text-xs">메시지</span>
+            </button>
+            <button onClick={() => router.push('/exercises')} className="flex flex-col items-center gap-1 text-gray-400">
+              <span className="text-xl">💪</span>
+              <span className="text-xs">운동</span>
+            </button>
+            <button onClick={() => router.push('/settings')} className="flex flex-col items-center gap-1 text-gray-400">
+              <span className="text-xl">⚙️</span>
+              <span className="text-xs">설정</span>
+            </button>
+          </div>
+        </nav>
+      </div>
+    )
+  }
+
+  // ===== 환자 대시보드 =====
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <header className="bg-white shadow-sm">
