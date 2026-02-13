@@ -45,7 +45,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 })
     }
 
-    // hospital_patients 조회 + user 정보 조인
     const { data: patients, error } = await supabase
       .from('hospital_patients')
       .select(`
@@ -54,13 +53,12 @@ export async function GET(request: NextRequest) {
         patient_name,
         patient_phone,
         diagnosis,
-        surgery_type,
-        surgery_date,
+        surgery_name,
         assigned_trainer_id,
         program_start_date,
         program_end_date,
-        program_week,
-        status,
+        program_status,
+        is_active,
         notes,
         created_at,
         user_id
@@ -103,11 +101,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const enrichedPatients = (patients || []).map(p => ({
-      ...p,
-      assigned_trainer: p.assigned_trainer_id ? trainersMap[p.assigned_trainer_id] || null : null,
-      linked_user: p.user_id ? usersMap[p.user_id] || null : null,
-    }))
+    // 프로그램 주차 계산 (program_start_date 기준)
+    const enrichedPatients = (patients || []).map(p => {
+      let program_week = null
+      if (p.program_start_date) {
+        const startDate = new Date(p.program_start_date)
+        const now = new Date()
+        const diffDays = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+        program_week = Math.min(Math.max(Math.ceil(diffDays / 7), 1), 12)
+      }
+
+      return {
+        ...p,
+        program_week,
+        assigned_trainer: p.assigned_trainer_id ? trainersMap[p.assigned_trainer_id] || null : null,
+        linked_user: p.user_id ? usersMap[p.user_id] || null : null,
+      }
+    })
 
     return NextResponse.json({ patients: enrichedPatients })
   } catch (error) {
@@ -125,7 +135,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { patient_name, patient_phone, diagnosis, surgery_type, surgery_date, assigned_trainer_id, notes } = body
+    const { patient_name, patient_phone, diagnosis, surgery_name, assigned_trainer_id, notes } = body
 
     if (!patient_name || !patient_phone) {
       return NextResponse.json({ error: '환자 이름과 전화번호는 필수입니다.' }, { status: 400 })
@@ -159,7 +169,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이미 등록된 환자입니다.' }, { status: 409 })
     }
 
-    // 프로그램 시작일 = 오늘, 종료일은 트리거가 자동 계산
     const now = new Date().toISOString()
 
     const { data: newPatient, error } = await supabase
@@ -168,14 +177,13 @@ export async function POST(request: NextRequest) {
         hospital_id: hospitalId,
         hospital_code: hospitalCode,
         patient_name,
-        patient_phone,
+        patient_phone: phoneDigits,
         diagnosis: diagnosis || null,
-        surgery_type: surgery_type || null,
-        surgery_date: surgery_date || null,
+        surgery_name: surgery_name || null,
         assigned_trainer_id: assigned_trainer_id || null,
         program_start_date: now,
-        program_week: 1,
-        status: 'active',
+        program_status: 'active',
+        is_active: true,
         notes: notes || null,
       })
       .select()
@@ -208,12 +216,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'patient_id가 필요합니다.' }, { status: 400 })
     }
 
-    // 허용 필드만 업데이트
-    const allowedFields = ['patient_name', 'diagnosis', 'surgery_type', 'surgery_date', 'assigned_trainer_id', 'status', 'notes', 'program_week']
+    const allowedFields = ['patient_name', 'diagnosis', 'surgery_name', 'assigned_trainer_id', 'program_status', 'is_active', 'notes']
     const safeUpdates: Record<string, unknown> = {}
     for (const key of allowedFields) {
       if (key in updates) safeUpdates[key] = updates[key]
     }
+    safeUpdates.updated_at = new Date().toISOString()
 
     const { data, error } = await supabase
       .from('hospital_patients')

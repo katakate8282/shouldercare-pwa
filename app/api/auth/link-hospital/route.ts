@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // hospital_patients에서 해당 코드 찾기
     const { data: hospitalPatient, error: hpError } = await supabase
       .from('hospital_patients')
-      .select('id, hospital_id, status, user_id')
+      .select('id, hospital_id, program_status, user_id')
       .eq('hospital_code', hospitalCode)
       .single()
 
@@ -154,21 +154,30 @@ export async function GET(request: NextRequest) {
     if (user.active_hospital_patient_id) {
       const { data: hp } = await supabase
         .from('hospital_patients')
-        .select('program_week, program_start_date, program_end_date, diagnosis, surgery_type, status, assigned_trainer_id')
+        .select('program_start_date, program_end_date, diagnosis, surgery_name, program_status, assigned_trainer_id')
         .eq('id', user.active_hospital_patient_id)
         .single()
 
       if (hp) {
-        let trainerName = null
+        // 주차 계산
+        let program_week = null
+        if (hp.program_start_date) {
+          const startDate = new Date(hp.program_start_date)
+          const now = new Date()
+          const diffDays = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+          program_week = Math.min(Math.max(Math.ceil(diffDays / 7), 1), 12)
+        }
+
+        let trainer_name = null
         if (hp.assigned_trainer_id) {
           const { data: trainer } = await supabase
             .from('users')
             .select('name')
             .eq('id', hp.assigned_trainer_id)
             .single()
-          trainerName = trainer?.name || null
+          trainer_name = trainer?.name || null
         }
-        patientInfo = { ...hp, trainer_name: trainerName }
+        patientInfo = { ...hp, program_week, trainer_name }
       }
     }
 

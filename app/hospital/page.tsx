@@ -22,15 +22,15 @@ interface Patient {
   patient_name: string
   patient_phone: string
   diagnosis: string | null
-  surgery_type: string | null
-  surgery_date: string | null
+  surgery_name: string | null
   assigned_trainer_id: string | null
   assigned_trainer: { name: string; email: string } | null
   linked_user: { name: string; email: string } | null
   program_start_date: string | null
   program_end_date: string | null
   program_week: number | null
-  status: string
+  program_status: string
+  is_active: boolean
   notes: string | null
   user_id: string | null
   created_at: string
@@ -51,14 +51,8 @@ function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null
   return localStorage.getItem(HOSPITAL_TOKEN_KEY)
 }
-
-function setStoredToken(token: string) {
-  localStorage.setItem(HOSPITAL_TOKEN_KEY, token)
-}
-
-function removeStoredToken() {
-  localStorage.removeItem(HOSPITAL_TOKEN_KEY)
-}
+function setStoredToken(token: string) { localStorage.setItem(HOSPITAL_TOKEN_KEY, token) }
+function removeStoredToken() { localStorage.removeItem(HOSPITAL_TOKEN_KEY) }
 
 async function hospitalFetch(url: string, options?: RequestInit) {
   const token = getStoredToken()
@@ -70,83 +64,75 @@ async function hospitalFetch(url: string, options?: RequestInit) {
   return fetch(url, { ...options, headers })
 }
 
+// 전화번호 포맷: 01012345678 → 010-1234-5678
+function formatPhone(phone: string): string {
+  const digits = phone.replace(/[^0-9]/g, '')
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  return phone
+}
+
+// 전화번호 입력 시 자동 하이픈
+function autoFormatPhone(value: string): string {
+  const digits = value.replace(/[^0-9]/g, '')
+  if (digits.length <= 3) return digits
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`
+}
+
 export default function HospitalPage() {
   const router = useRouter()
 
-  // 인증 상태
   const [authenticated, setAuthenticated] = useState(false)
   const [hospital, setHospital] = useState<Hospital | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // 로그인 폼
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
 
-  // 탭
   const [tab, setTab] = useState<Tab>('patients')
 
-  // 환자 데이터
   const [patients, setPatients] = useState<Patient[]>([])
   const [patientsLoading, setPatientsLoading] = useState(false)
 
-  // 트레이너 데이터
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [trainersLoading, setTrainersLoading] = useState(false)
 
-  // 환자 등록 모달
   const [showAddPatient, setShowAddPatient] = useState(false)
   const [patientForm, setPatientForm] = useState({
     patient_name: '',
     patient_phone: '',
     diagnosis: '',
-    surgery_type: '',
-    surgery_date: '',
+    surgery_name: '',
     assigned_trainer_id: '',
     notes: '',
   })
   const [addingPatient, setAddingPatient] = useState(false)
   const [patientMessage, setPatientMessage] = useState('')
 
-  // 환자 상세
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
 
-  // 세션 확인
-  useEffect(() => {
-    checkSession()
-  }, [])
+  useEffect(() => { checkSession() }, [])
 
   async function checkSession() {
     try {
       const token = getStoredToken()
-      if (!token) {
-        setLoading(false)
-        return
-      }
+      if (!token) { setLoading(false); return }
       const res = await hospitalFetch('/api/auth/hospital/me')
       if (res.ok) {
         const data = await res.json()
-        if (data.hospital) {
-          setHospital(data.hospital)
-          setAuthenticated(true)
-        }
-      } else {
-        removeStoredToken()
-      }
-    } catch {
-      removeStoredToken()
-    } finally {
-      setLoading(false)
-    }
+        if (data.hospital) { setHospital(data.hospital); setAuthenticated(true) }
+      } else { removeStoredToken() }
+    } catch { removeStoredToken() }
+    finally { setLoading(false) }
   }
 
-  // 로그인
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoginLoading(true)
     setLoginError('')
-
     try {
       const res = await fetch('/api/auth/hospital/login', {
         method: 'POST',
@@ -154,7 +140,6 @@ export default function HospitalPage() {
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       })
       const data = await res.json()
-
       if (res.ok && data.success) {
         setStoredToken(data.token)
         setHospital(data.hospital)
@@ -162,14 +147,10 @@ export default function HospitalPage() {
       } else {
         setLoginError(data.error || '로그인 실패')
       }
-    } catch {
-      setLoginError('서버 연결 오류')
-    } finally {
-      setLoginLoading(false)
-    }
+    } catch { setLoginError('서버 연결 오류') }
+    finally { setLoginLoading(false) }
   }
 
-  // 로그아웃
   function handleLogout() {
     removeStoredToken()
     setAuthenticated(false)
@@ -178,114 +159,80 @@ export default function HospitalPage() {
     setTrainers([])
   }
 
-  // 환자 목록 조회
   async function fetchPatients() {
     setPatientsLoading(true)
     try {
       const res = await hospitalFetch('/api/auth/hospital/patients')
-      if (res.ok) {
-        const data = await res.json()
-        setPatients(data.patients || [])
-      }
-    } catch (err) {
-      console.error('환자 조회 실패:', err)
-    } finally {
-      setPatientsLoading(false)
-    }
+      if (res.ok) { const data = await res.json(); setPatients(data.patients || []) }
+    } catch (err) { console.error('환자 조회 실패:', err) }
+    finally { setPatientsLoading(false) }
   }
 
-  // 트레이너 목록 조회
   async function fetchTrainers() {
     setTrainersLoading(true)
     try {
       const res = await hospitalFetch('/api/auth/hospital/trainers')
-      if (res.ok) {
-        const data = await res.json()
-        setTrainers(data.trainers || [])
-      }
-    } catch (err) {
-      console.error('트레이너 조회 실패:', err)
-    } finally {
-      setTrainersLoading(false)
-    }
+      if (res.ok) { const data = await res.json(); setTrainers(data.trainers || []) }
+    } catch (err) { console.error('트레이너 조회 실패:', err) }
+    finally { setTrainersLoading(false) }
   }
 
-  // 인증 후 데이터 로드
   useEffect(() => {
-    if (authenticated) {
-      fetchPatients()
-      fetchTrainers()
-    }
+    if (authenticated) { fetchPatients(); fetchTrainers() }
   }, [authenticated])
 
-  // 환자 등록
   async function handleAddPatient(e: React.FormEvent) {
     e.preventDefault()
     setAddingPatient(true)
     setPatientMessage('')
-
     try {
       const res = await hospitalFetch('/api/auth/hospital/patients', {
         method: 'POST',
         body: JSON.stringify(patientForm),
       })
       const data = await res.json()
-
       if (res.ok && data.success) {
         setPatientMessage(`✅ 등록 완료! 병원코드: ${data.hospital_code}`)
-        setPatientForm({ patient_name: '', patient_phone: '', diagnosis: '', surgery_type: '', surgery_date: '', assigned_trainer_id: '', notes: '' })
+        setPatientForm({ patient_name: '', patient_phone: '', diagnosis: '', surgery_name: '', assigned_trainer_id: '', notes: '' })
         fetchPatients()
         setTimeout(() => { setShowAddPatient(false); setPatientMessage('') }, 2000)
       } else {
         setPatientMessage(`❌ ${data.error}`)
       }
-    } catch {
-      setPatientMessage('❌ 서버 연결 오류')
-    } finally {
-      setAddingPatient(false)
-    }
+    } catch { setPatientMessage('❌ 서버 연결 오류') }
+    finally { setAddingPatient(false) }
   }
 
-  // 환자 상태 변경
-  async function updatePatientStatus(patientId: string, status: string) {
+  async function updatePatientStatus(patientId: string, program_status: string) {
     try {
       const res = await hospitalFetch('/api/auth/hospital/patients', {
         method: 'PATCH',
-        body: JSON.stringify({ patient_id: patientId, status }),
+        body: JSON.stringify({ patient_id: patientId, program_status }),
       })
       if (res.ok) {
         fetchPatients()
         if (selectedPatient?.id === patientId) {
-          setSelectedPatient(prev => prev ? { ...prev, status } : null)
+          setSelectedPatient(prev => prev ? { ...prev, program_status } : null)
         }
       }
-    } catch (err) {
-      console.error('상태 변경 실패:', err)
-    }
+    } catch (err) { console.error('상태 변경 실패:', err) }
   }
 
-  // 트레이너 배정
   async function assignTrainer(patientId: string, trainerId: string) {
     try {
       const res = await hospitalFetch('/api/auth/hospital/patients', {
         method: 'PATCH',
         body: JSON.stringify({ patient_id: patientId, assigned_trainer_id: trainerId || null }),
       })
-      if (res.ok) {
-        fetchPatients()
-      }
-    } catch (err) {
-      console.error('트레이너 배정 실패:', err)
-    }
+      if (res.ok) { fetchPatients() }
+    } catch (err) { console.error('트레이너 배정 실패:', err) }
   }
 
-  // 날짜 포맷
   function formatDate(dateStr: string | null) {
     if (!dateStr) return '-'
     return new Date(dateStr).toLocaleDateString('ko-KR')
   }
 
-  // 로딩
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8f9fa' }}>
@@ -304,64 +251,36 @@ export default function HospitalPage() {
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>병원 관리자</h1>
             <p style={{ fontSize: 14, color: '#888', marginTop: 4 }}>어깨케어 병원 관리 시스템</p>
           </div>
-
           <form onSubmit={handleLogin}>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#555', marginBottom: 6 }}>이메일</label>
-              <input
-                type="email"
-                value={loginEmail}
-                onChange={e => setLoginEmail(e.target.value)}
-                placeholder="hospital@example.com"
-                required
-                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #ddd', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
-                onFocus={e => e.target.style.borderColor = '#667eea'}
-                onBlur={e => e.target.style.borderColor = '#ddd'}
-              />
+              <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="hospital@example.com" required
+                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #ddd', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = '#667eea'} onBlur={e => e.target.style.borderColor = '#ddd'} />
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#555', marginBottom: 6 }}>비밀번호</label>
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={e => setLoginPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #ddd', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
-                onFocus={e => e.target.style.borderColor = '#667eea'}
-                onBlur={e => e.target.style.borderColor = '#ddd'}
-              />
+              <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="••••••••" required
+                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #ddd', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = '#667eea'} onBlur={e => e.target.style.borderColor = '#ddd'} />
             </div>
-
             {loginError && (
-              <div style={{ background: '#fff0f0', color: '#e53e3e', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
-                {loginError}
-              </div>
+              <div style={{ background: '#fff0f0', color: '#e53e3e', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{loginError}</div>
             )}
-
-            <button
-              type="submit"
-              disabled={loginLoading}
-              style={{
-                width: '100%', padding: '14px', background: loginLoading ? '#aaa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 600, cursor: loginLoading ? 'not-allowed' : 'pointer',
-              }}
-            >
+            <button type="submit" disabled={loginLoading}
+              style={{ width: '100%', padding: '14px', background: loginLoading ? '#aaa' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 600, cursor: loginLoading ? 'not-allowed' : 'pointer' }}>
               {loginLoading ? '로그인 중...' : '로그인'}
             </button>
           </form>
-
-          <p style={{ textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: 24 }}>
-            계정은 어깨케어 관리자가 발급합니다
-          </p>
+          <p style={{ textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: 24 }}>계정은 어깨케어 관리자가 발급합니다</p>
         </div>
       </div>
     )
   }
 
   // 메인 대시보드
-  const activePatients = patients.filter(p => p.status === 'active')
-  const completedPatients = patients.filter(p => p.status === 'completed')
+  const activePatients = patients.filter(p => p.program_status === 'active')
+  const completedPatients = patients.filter(p => p.program_status === 'completed')
   const linkedPatients = patients.filter(p => p.user_id)
 
   return (
@@ -377,9 +296,7 @@ export default function HospitalPage() {
             </p>
           </div>
         </div>
-        <button onClick={handleLogout} style={{ padding: '8px 16px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#666' }}>
-          로그아웃
-        </button>
+        <button onClick={handleLogout} style={{ padding: '8px 16px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#666' }}>로그아웃</button>
       </div>
 
       {/* 요약 카드 */}
@@ -409,20 +326,13 @@ export default function HospitalPage() {
           { key: 'trainers' as Tab, label: '🏋️ 트레이너' },
           { key: 'info' as Tab, label: 'ℹ️ 병원 정보' },
         ].map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            style={{
-              padding: '14px 18px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, fontWeight: tab === t.key ? 600 : 400,
-              color: tab === t.key ? '#667eea' : '#888', borderBottom: tab === t.key ? '2px solid #667eea' : '2px solid transparent',
-            }}
-          >
+          <button key={t.key} onClick={() => setTab(t.key)}
+            style={{ padding: '14px 18px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? '#667eea' : '#888', borderBottom: tab === t.key ? '2px solid #667eea' : '2px solid transparent' }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* 탭 내용 */}
       <div style={{ padding: 24 }}>
 
         {/* 환자 관리 탭 */}
@@ -430,10 +340,8 @@ export default function HospitalPage() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>환자 목록 ({patients.length}명)</h2>
-              <button
-                onClick={() => setShowAddPatient(true)}
-                style={{ padding: '10px 20px', background: '#667eea', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-              >
+              <button onClick={() => setShowAddPatient(true)}
+                style={{ padding: '10px 20px', background: '#667eea', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                 + 환자 등록
               </button>
             </div>
@@ -444,37 +352,29 @@ export default function HospitalPage() {
               <div style={{ textAlign: 'center', padding: 60, color: '#888' }}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
                 <p>등록된 환자가 없습니다</p>
-                <button onClick={() => setShowAddPatient(true)} style={{ marginTop: 12, padding: '10px 24px', background: '#667eea', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-                  첫 환자 등록하기
-                </button>
+                <button onClick={() => setShowAddPatient(true)} style={{ marginTop: 12, padding: '10px 24px', background: '#667eea', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>첫 환자 등록하기</button>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {patients.map(patient => (
-                  <div
-                    key={patient.id}
-                    onClick={() => setSelectedPatient(patient)}
-                    style={{
-                      background: 'white', borderRadius: 12, padding: '16px 20px', cursor: 'pointer',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: selectedPatient?.id === patient.id ? '2px solid #667eea' : '1px solid #eee',
-                      transition: 'border-color 0.2s',
-                    }}
-                  >
+                  <div key={patient.id} onClick={() => setSelectedPatient(patient)}
+                    style={{ background: 'white', borderRadius: 12, padding: '16px 20px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: selectedPatient?.id === patient.id ? '2px solid #667eea' : '1px solid #eee', transition: 'border-color 0.2s' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontWeight: 600, fontSize: 15 }}>{patient.patient_name}</span>
                           <span style={{
                             padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
-                            background: patient.status === 'active' ? '#e6fffa' : patient.status === 'completed' ? '#f0f0f0' : '#fff5f5',
-                            color: patient.status === 'active' ? '#38a169' : patient.status === 'completed' ? '#888' : '#e53e3e',
+                            background: patient.program_status === 'active' ? '#e6fffa' : patient.program_status === 'completed' ? '#f0f0f0' : '#fff5f5',
+                            color: patient.program_status === 'active' ? '#38a169' : patient.program_status === 'completed' ? '#888' : '#e53e3e',
                           }}>
-                            {patient.status === 'active' ? '진행중' : patient.status === 'completed' ? '완료' : '중단'}
+                            {patient.program_status === 'active' ? '진행중' : patient.program_status === 'completed' ? '완료' : '중단'}
                           </span>
                           {patient.user_id && <span style={{ fontSize: 11, color: '#667eea' }}>📱 앱연동</span>}
                         </div>
                         <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
                           <span style={{ background: '#f7f7f7', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11 }}>{patient.hospital_code}</span>
+                          <span style={{ marginLeft: 8 }}>{formatPhone(patient.patient_phone)}</span>
                           {patient.diagnosis && <span style={{ marginLeft: 8 }}>📋 {patient.diagnosis}</span>}
                         </div>
                       </div>
@@ -499,11 +399,10 @@ export default function HospitalPage() {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>병원코드</span><span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{selectedPatient.hospital_code}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>전화번호</span><span>{selectedPatient.patient_phone}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>전화번호</span><span>{formatPhone(selectedPatient.patient_phone)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>진단명</span><span>{selectedPatient.diagnosis || '-'}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>시술/수술</span><span>{selectedPatient.surgery_type || '-'}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>시술일</span><span>{formatDate(selectedPatient.surgery_date)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>프로그램</span><span>{selectedPatient.program_week}주차 / 12주</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>시술/수술</span><span>{selectedPatient.surgery_name || '-'}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>프로그램</span><span>{selectedPatient.program_week ? `${selectedPatient.program_week}주차 / 12주` : '-'}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>시작일</span><span>{formatDate(selectedPatient.program_start_date)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>종료 예정</span><span>{formatDate(selectedPatient.program_end_date)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#888' }}>앱 연동</span><span>{selectedPatient.linked_user ? `✅ ${selectedPatient.linked_user.name}` : '❌ 미연동'}</span></div>
@@ -511,36 +410,27 @@ export default function HospitalPage() {
 
                     <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: '8px 0' }} />
 
-                    {/* 트레이너 배정 */}
                     <div>
                       <label style={{ fontSize: 13, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>담당 트레이너</label>
-                      <select
-                        value={selectedPatient.assigned_trainer_id || ''}
-                        onChange={e => {
-                          assignTrainer(selectedPatient.id, e.target.value)
-                          setSelectedPatient(prev => prev ? { ...prev, assigned_trainer_id: e.target.value || null } : null)
-                        }}
-                        style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 14 }}
-                      >
+                      <select value={selectedPatient.assigned_trainer_id || ''}
+                        onChange={e => { assignTrainer(selectedPatient.id, e.target.value); setSelectedPatient(prev => prev ? { ...prev, assigned_trainer_id: e.target.value || null } : null) }}
+                        style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 14 }}>
                         <option value="">미배정</option>
-                        {trainers.map(t => (
-                          <option key={t.id} value={t.id}>{t.name} ({t.active_patient_count}명 담당)</option>
-                        ))}
+                        {trainers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.active_patient_count}명 담당)</option>)}
                       </select>
                     </div>
 
-                    {/* 상태 변경 */}
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      {selectedPatient.status === 'active' && (
+                      {selectedPatient.program_status === 'active' && (
                         <>
                           <button onClick={() => updatePatientStatus(selectedPatient.id, 'completed')} style={{ flex: 1, padding: 10, background: '#48bb78', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>프로그램 완료</button>
                           <button onClick={() => updatePatientStatus(selectedPatient.id, 'paused')} style={{ flex: 1, padding: 10, background: '#ed8936', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>일시 중단</button>
                         </>
                       )}
-                      {selectedPatient.status === 'paused' && (
+                      {selectedPatient.program_status === 'paused' && (
                         <button onClick={() => updatePatientStatus(selectedPatient.id, 'active')} style={{ flex: 1, padding: 10, background: '#667eea', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>재개</button>
                       )}
-                      {selectedPatient.status === 'completed' && (
+                      {selectedPatient.program_status === 'completed' && (
                         <button onClick={() => updatePatientStatus(selectedPatient.id, 'active')} style={{ flex: 1, padding: 10, background: '#667eea', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>재시작</button>
                       )}
                     </div>
@@ -567,7 +457,9 @@ export default function HospitalPage() {
                       </div>
                       <div>
                         <label style={{ fontSize: 13, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>전화번호 * <span style={{ fontWeight: 400, color: '#aaa' }}>(병원코드 자동 생성)</span></label>
-                        <input value={patientForm.patient_phone} onChange={e => setPatientForm(f => ({ ...f, patient_phone: e.target.value }))} required placeholder="010-1234-5678"
+                        <input value={patientForm.patient_phone}
+                          onChange={e => setPatientForm(f => ({ ...f, patient_phone: autoFormatPhone(e.target.value) }))}
+                          required placeholder="010-1234-5678" maxLength={13}
                           style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
                       </div>
                       <div>
@@ -577,12 +469,7 @@ export default function HospitalPage() {
                       </div>
                       <div>
                         <label style={{ fontSize: 13, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>시술/수술명</label>
-                        <input value={patientForm.surgery_type} onChange={e => setPatientForm(f => ({ ...f, surgery_type: e.target.value }))} placeholder="예: 관절경 수술"
-                          style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 13, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>시술일</label>
-                        <input type="date" value={patientForm.surgery_date} onChange={e => setPatientForm(f => ({ ...f, surgery_date: e.target.value }))}
+                        <input value={patientForm.surgery_name} onChange={e => setPatientForm(f => ({ ...f, surgery_name: e.target.value }))} placeholder="예: 관절경 수술"
                           style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
                       </div>
                       <div>
@@ -621,7 +508,6 @@ export default function HospitalPage() {
         {tab === 'trainers' && (
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>소속 트레이너 ({trainers.length}명)</h2>
-
             {trainersLoading ? (
               <p style={{ textAlign: 'center', color: '#888', padding: 40 }}>불러오는 중...</p>
             ) : trainers.length === 0 ? (
@@ -639,11 +525,9 @@ export default function HospitalPage() {
                         <span style={{ fontWeight: 600, fontSize: 15 }}>{trainer.name}</span>
                         <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{trainer.email}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ background: '#edf2f7', padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, color: '#4a5568' }}>
-                          담당 {trainer.active_patient_count}명
-                        </span>
-                      </div>
+                      <span style={{ background: '#edf2f7', padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, color: '#4a5568' }}>
+                        담당 {trainer.active_patient_count}명
+                      </span>
                     </div>
                   </div>
                 ))}
