@@ -13,11 +13,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   auth_failed: '로그인에 실패했습니다.',
 }
 
+function isKakaoInAppBrowser(): boolean {
+  if (typeof window === 'undefined') return false
+  const ua = navigator.userAgent.toLowerCase()
+  return ua.includes('kakaotalk') || ua.includes('kakao')
+}
+
 function shouldSkipSplash(): boolean {
   if (typeof window === 'undefined') return false
   try {
-    const ua = navigator.userAgent.toLowerCase()
-    if (ua.includes('kakaotalk') || ua.includes('kakao')) return true
+    if (isKakaoInAppBrowser()) return true
     if (sessionStorage.getItem('sc_splash_done')) return true
   } catch {}
   return false
@@ -30,6 +35,7 @@ export default function LoginPage() {
     return shouldSkipSplash() ? 'main' : 'splash'
   })
   const [splashFading, setSplashFading] = useState(false)
+  const [isKakao, setIsKakao] = useState(false)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -38,6 +44,11 @@ export default function LoginPage() {
 
   const initDone = useRef(false)
   const splashDone = useRef(false)
+
+  // 카카오 인앱 브라우저 감지
+  useEffect(() => {
+    setIsKakao(isKakaoInAppBrowser())
+  }, [])
 
   // 인증 체크 + 콜백 처리
   useEffect(() => {
@@ -99,6 +110,32 @@ export default function LoginPage() {
   const handleKakaoLogin = () => {
     setIsLoading(true)
     setError(null)
+
+    if (isKakaoInAppBrowser()) {
+      // 카카오 인앱 브라우저 → 외부 브라우저(Safari/Chrome)로 강제 오픈
+      const currentUrl = window.location.origin + '/api/auth/kakao'
+
+      // Android: intent scheme
+      const ua = navigator.userAgent.toLowerCase()
+      if (/android/i.test(ua)) {
+        window.location.href = `intent://${currentUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`
+        return
+      }
+
+      // iOS: Safari로 강제 오픈 (카카오 인앱 브라우저 탈출)
+      // 방법 1: location.href로 직접 이동 (일부 버전에서 동작)
+      // 방법 2: 딥링크 불가 시 사용자에게 안내
+      window.location.href = currentUrl
+      
+      // 1초 후에도 페이지가 남아있으면 (리다이렉트 실패) 외부 브라우저 안내
+      setTimeout(() => {
+        setIsLoading(false)
+        setError('카카오톡 내에서 로그인이 제한될 수 있습니다. 우측 상단 메뉴(⋮)에서 "다른 브라우저로 열기"를 선택해주세요.')
+      }, 2000)
+      return
+    }
+
+    // 일반 브라우저: 기존 방식
     window.location.href = '/api/auth/kakao'
   }
 
@@ -168,6 +205,19 @@ export default function LoginPage() {
     setIsLoading(false)
   }
 
+  // 카카오 인앱 브라우저에서 외부 브라우저로 유도하는 배너
+  const KakaoBanner = () => {
+    if (!isKakao) return null
+    return (
+      <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <p className="text-sm text-yellow-800 text-center">
+          📱 카카오톡에서 열렸습니다.<br />
+          <strong>원활한 로그인을 위해 우측 상단 메뉴(⋮)에서<br />&quot;다른 브라우저로 열기&quot;를 권장합니다.</strong>
+        </p>
+      </div>
+    )
+  }
+
   // ===== 스플래시 화면 =====
   if (view === 'splash') {
     return (
@@ -232,6 +282,8 @@ export default function LoginPage() {
               <h1 className="text-3xl font-bold text-gray-800 mb-2">어깨케어</h1>
               <p className="text-gray-600">AI 기반 어깨 재활 전문 플랫폼</p>
             </div>
+
+            <KakaoBanner />
 
             {error && (
               <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
