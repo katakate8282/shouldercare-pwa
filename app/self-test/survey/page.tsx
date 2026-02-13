@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 
 // ===== 타입 =====
 interface SurveyData {
@@ -285,87 +285,56 @@ export default function SurveyPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [survey, setSurvey] = useState<SurveyData>({ ...INITIAL_SURVEY })
-  const [showTreatmentDetail, setShowTreatmentDetail] = useState(false)
   const [animating, setAnimating] = useState(false)
-  const [direction, setDirection] = useState<'forward' | 'back'>('forward')
-
-  // 실제 스텝 수 계산 (Q8 하위선택 포함 시 +1)
-  const needsTreatmentDetail = survey.current_treatment.some(t => 
-    ['injection', 'non_surgical', 'surgical'].includes(t)
-  )
 
   // Q9 크론질환 텍스트 입력 서브스텝
   const [showChronicInput, setShowChronicInput] = useState(false)
   // Q10 운동 텍스트 입력 서브스텝
   const [showExerciseInput, setShowExerciseInput] = useState(false)
 
-  const getTotalSteps = () => {
-    let total = 10
-    if (needsTreatmentDetail) total++
-    return total
-  }
-
-  const getDisplayStep = () => {
-    if (step <= 8) return step
-    if (step === 9 && showTreatmentDetail && needsTreatmentDetail) return 8 // 8의 하위
-    return step - (needsTreatmentDetail ? 0 : 0)
+  // 설문 완료 처리
+  const handleComplete = (finalData?: Partial<SurveyData>) => {
+    const finalSurvey = { ...survey, ...finalData }
+    sessionStorage.setItem('selftest_survey', JSON.stringify(finalSurvey))
+    // Phase 2 미구현 → 임시 완료 페이지
+    router.push('/self-test/complete')
   }
 
   // 자동 넘김 (단일 선택 질문)
-  const goNext = useCallback(() => {
+  const goNext = () => {
     if (animating) return
-    setDirection('forward')
     setAnimating(true)
     setTimeout(() => {
-      // Q8 하위선택 처리
-      if (step === 8 && !showTreatmentDetail && needsTreatmentDetail) {
-        setShowTreatmentDetail(true)
-      } else if (step === 9 && survey.chronic_disease === true && !showChronicInput) {
+      if (step === 9 && survey.chronic_disease === true && !showChronicInput) {
         setShowChronicInput(true)
       } else if (step === 10 && survey.regular_exercise === true && !showExerciseInput) {
         setShowExerciseInput(true)
+      } else if (showChronicInput) {
+        setShowChronicInput(false)
+        setStep(10)
+      } else if (showExerciseInput) {
+        setShowExerciseInput(false)
+        handleComplete()
+        return
       } else {
-        if (showTreatmentDetail) {
-          setShowTreatmentDetail(false)
-          setStep(9)
-        } else if (showChronicInput) {
-          setShowChronicInput(false)
-          setStep(10)
-        } else if (showExerciseInput) {
-          setShowExerciseInput(false)
-          // 설문 완료 → 다음 단계
-          handleComplete()
-          return
-        } else {
-          setStep(prev => prev + 1)
-        }
+        setStep(prev => prev + 1)
       }
       setAnimating(false)
     }, 200)
-  }, [step, animating, showTreatmentDetail, needsTreatmentDetail, showChronicInput, showExerciseInput, survey.chronic_disease, survey.regular_exercise])
+  }
 
   const goBack = () => {
     if (animating) return
-    setDirection('back')
     setAnimating(true)
     setTimeout(() => {
       if (showExerciseInput) {
         setShowExerciseInput(false)
       } else if (showChronicInput) {
         setShowChronicInput(false)
-      } else if (showTreatmentDetail) {
-        setShowTreatmentDetail(false)
       } else if (step > 1) {
-        // 뒤로 갈 때 서브스텝 복원
         if (step === 10 && survey.chronic_disease === true) {
           setStep(9)
           setShowChronicInput(true)
-          setAnimating(false)
-          return
-        }
-        if (step === 9 && needsTreatmentDetail) {
-          setStep(8)
-          setShowTreatmentDetail(true)
           setAnimating(false)
           return
         }
@@ -378,31 +347,40 @@ export default function SurveyPage() {
     }, 200)
   }
 
-  const handleComplete = () => {
-    // sessionStorage에 설문 결과 저장 → 다음 단계(ROM 측정)로
-    sessionStorage.setItem('selftest_survey', JSON.stringify(survey))
-    router.push('/self-test/measure')
-  }
-
   // 진행률 계산
   const getProgress = () => {
     let current = step
-    if (showTreatmentDetail) current = 8.5
     if (showChronicInput) current = 9.5
     if (showExerciseInput) current = 10.5
-    const total = getTotalSteps() + (survey.chronic_disease === true ? 0.5 : 0) + (survey.regular_exercise === true ? 0.5 : 0)
-    return Math.min((current / (total || 1)) * 100, 100)
+    return Math.min((current / 11) * 100, 100)
   }
+
+  // Q8 치료 선택 시 하위 옵션 가져오기
+  const getTreatmentDetails = () => {
+    const details: { id: string; label: string; group: string }[] = []
+    if (survey.current_treatment.includes('injection')) {
+      INJECTION_DETAILS.forEach(d => details.push({ ...d, group: '주사치료' }))
+    }
+    if (survey.current_treatment.includes('non_surgical')) {
+      NON_SURGICAL_DETAILS.forEach(d => details.push({ ...d, group: '비수술적치료' }))
+    }
+    if (survey.current_treatment.includes('surgical')) {
+      SURGICAL_DETAILS.forEach(d => details.push({ ...d, group: '수술적치료' }))
+    }
+    return details
+  }
+
+  // Q8에서 하위선택이 필요한지
+  const needsTreatmentDetail = survey.current_treatment.some(t =>
+    ['injection', 'non_surgical', 'surgical'].includes(t)
+  )
 
   // ===== 각 질문 렌더링 =====
   const renderQuestion = () => {
     // Q1: 어느 쪽 어깨
     if (step === 1) {
       return (
-        <QuestionWrapper
-          num={1}
-          title="어느 쪽 어깨가 아프세요?"
-        >
+        <QuestionWrapper num={1} title="어느 쪽 어깨가 아프세요?">
           <SingleSelect
             options={[
               { id: 'left', label: '왼쪽 어깨' },
@@ -559,62 +537,107 @@ export default function SurveyPage() {
       )
     }
 
-    // Q8: 현재 치료
-    if (step === 8 && !showTreatmentDetail) {
+    // Q8: 현재 치료 (상위 + 하위 같은 화면)
+    if (step === 8) {
+      const treatmentDetails = getTreatmentDetails()
+
+      // 다음 버튼 활성화 조건: 치료 선택됨 + (하위 필요하면 하위도 선택됨)
+      const q8NextEnabled = survey.current_treatment.length > 0 &&
+        (!needsTreatmentDetail || survey.treatment_detail.length > 0)
+
       return (
         <QuestionWrapper
           num={8}
           title="현재 치료 중인 사항이 있나요?"
           subtitle="여러 개 선택 가능"
           showNext
-          nextEnabled={survey.current_treatment.length > 0}
+          nextEnabled={q8NextEnabled}
           onNext={goNext}
         >
-          <MultiSelect
-            options={TREATMENTS}
-            values={survey.current_treatment}
-            onChange={(vals) => setSurvey(prev => ({ ...prev, current_treatment: vals, treatment_detail: [] }))}
-            exclusiveId="none"
-          />
-        </QuestionWrapper>
-      )
-    }
+          <div className="space-y-2.5">
+            {TREATMENTS.map(opt => {
+              const isSelected = survey.current_treatment.includes(opt.id)
+              const hasSubOptions = ['injection', 'non_surgical', 'surgical'].includes(opt.id)
+              const showSub = isSelected && hasSubOptions
 
-    // Q8 하위: 치료 상세
-    if (showTreatmentDetail) {
-      const detailOptions: { id: string; label: string }[] = []
-      if (survey.current_treatment.includes('injection')) {
-        detailOptions.push(...INJECTION_DETAILS)
-      }
-      if (survey.current_treatment.includes('non_surgical')) {
-        detailOptions.push(...NON_SURGICAL_DETAILS)
-      }
-      if (survey.current_treatment.includes('surgical')) {
-        detailOptions.push(...SURGICAL_DETAILS)
-      }
+              // 해당 치료의 하위 옵션
+              let subOptions: { id: string; label: string }[] = []
+              if (opt.id === 'injection') subOptions = INJECTION_DETAILS
+              if (opt.id === 'non_surgical') subOptions = NON_SURGICAL_DETAILS
+              if (opt.id === 'surgical') subOptions = SURGICAL_DETAILS
 
-      const getDetailTitle = () => {
-        const parts: string[] = []
-        if (survey.current_treatment.includes('injection')) parts.push('주사치료')
-        if (survey.current_treatment.includes('non_surgical')) parts.push('비수술적치료')
-        if (survey.current_treatment.includes('surgical')) parts.push('수술적치료')
-        return `${parts.join(' / ')} 상세를 선택해주세요`
-      }
+              return (
+                <div key={opt.id}>
+                  <button
+                    onClick={() => {
+                      let newTreatments: string[]
+                      if (opt.id === 'none') {
+                        newTreatments = ['none']
+                      } else {
+                        const filtered = survey.current_treatment.filter(v => v !== 'none')
+                        if (filtered.includes(opt.id)) {
+                          newTreatments = filtered.filter(v => v !== opt.id)
+                          // 해당 치료 해제 시 하위도 해제
+                          const subIds = subOptions.map(s => s.id)
+                          setSurvey(prev => ({
+                            ...prev,
+                            treatment_detail: prev.treatment_detail.filter(d => !subIds.includes(d))
+                          }))
+                        } else {
+                          newTreatments = [...filtered, opt.id]
+                        }
+                      }
+                      setSurvey(prev => ({ ...prev, current_treatment: newTreatments }))
+                    }}
+                    className={`w-full py-3.5 px-4 rounded-xl text-left text-sm font-medium transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-sky-50 border-2 border-sky-500 text-sky-700'
+                        : 'bg-white border-2 border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {isSelected && (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#0284C7" stroke="none">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                      </svg>
+                    )}
+                  </button>
 
-      return (
-        <QuestionWrapper
-          num={8}
-          title={getDetailTitle()}
-          subtitle="해당하는 항목을 선택해주세요"
-          showNext
-          nextEnabled={survey.treatment_detail.length > 0}
-          onNext={goNext}
-        >
-          <MultiSelect
-            options={detailOptions}
-            values={survey.treatment_detail}
-            onChange={(vals) => setSurvey(prev => ({ ...prev, treatment_detail: vals }))}
-          />
+                  {/* 하위 선택 (인라인) */}
+                  {showSub && (
+                    <div className="ml-4 mt-1.5 mb-1 space-y-1.5">
+                      <p className="text-xs text-slate-400 ml-1">상세 선택:</p>
+                      {subOptions.map(sub => (
+                        <button
+                          key={sub.id}
+                          onClick={() => {
+                            setSurvey(prev => ({
+                              ...prev,
+                              treatment_detail: prev.treatment_detail.includes(sub.id)
+                                ? prev.treatment_detail.filter(d => d !== sub.id)
+                                : [...prev.treatment_detail, sub.id]
+                            }))
+                          }}
+                          className={`w-full py-2.5 px-3.5 rounded-lg text-left text-xs font-medium transition-all flex items-center justify-between ${
+                            survey.treatment_detail.includes(sub.id)
+                              ? 'bg-violet-50 border-2 border-violet-400 text-violet-700'
+                              : 'bg-slate-50 border-2 border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <span>{sub.label}</span>
+                          {survey.treatment_detail.includes(sub.id) && (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="#7C3AED" stroke="none">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </QuestionWrapper>
       )
     }
@@ -622,10 +645,7 @@ export default function SurveyPage() {
     // Q9: 만성질환
     if (step === 9 && !showChronicInput) {
       return (
-        <QuestionWrapper
-          num={9}
-          title="고혈압, 당뇨 같은 만성질환을 앓고 있나요?"
-        >
+        <QuestionWrapper num={9} title="고혈압, 당뇨 같은 만성질환을 앓고 있나요?">
           <div className="space-y-2.5">
             <button
               onClick={() => {
@@ -683,10 +703,7 @@ export default function SurveyPage() {
     // Q10: 꾸준한 운동
     if (step === 10 && !showExerciseInput) {
       return (
-        <QuestionWrapper
-          num={10}
-          title="평소 꾸준히 하는 운동이 있나요?"
-        >
+        <QuestionWrapper num={10} title="평소 꾸준히 하는 운동이 있나요?">
           <div className="space-y-2.5">
             <button
               onClick={() => {
@@ -704,12 +721,7 @@ export default function SurveyPage() {
             <button
               onClick={() => {
                 setSurvey(prev => ({ ...prev, regular_exercise: false, regular_exercise_detail: '' }))
-                // 설문 완료
-                setTimeout(() => {
-                  const finalSurvey = { ...survey, regular_exercise: false, regular_exercise_detail: '' }
-                  sessionStorage.setItem('selftest_survey', JSON.stringify(finalSurvey))
-                  router.push('/self-test/measure')
-                }, 300)
+                setTimeout(() => handleComplete({ regular_exercise: false, regular_exercise_detail: '' }), 300)
               }}
               className={`w-full py-3.5 px-4 rounded-xl text-left text-sm font-medium transition-all ${
                 survey.regular_exercise === false
@@ -733,10 +745,7 @@ export default function SurveyPage() {
           subtitle="운동 종류와 빈도를 적어주세요"
           showNext
           nextEnabled={survey.regular_exercise_detail.trim().length > 0}
-          onNext={() => {
-            sessionStorage.setItem('selftest_survey', JSON.stringify(survey))
-            router.push('/self-test/measure')
-          }}
+          onNext={() => handleComplete()}
           nextLabel="설문 완료"
         >
           <textarea
