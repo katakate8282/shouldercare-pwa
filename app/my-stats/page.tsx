@@ -352,7 +352,7 @@ export default function MyStatsPage() {
               }`}>
                 {weekPrescribedCount > 0 ? `${achievementRate}%` : '-'}
               </p>
-              <p className="text-xs text-gray-500">처방 달성률</p>
+              <p className="text-xs text-gray-500">목표 달성률</p>
             </div>
             <div className="text-center">
               {painChange ? (
@@ -380,7 +380,7 @@ export default function MyStatsPage() {
           {weekPrescribedCount > 0 && (
             <div className="mt-3">
               <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span>처방 달성</span>
+                <span>목표 달성</span>
                 <span>{weekExercises}/{weekPrescribedCount}회</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-3">

@@ -58,6 +58,12 @@ export default function DashboardPage() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [trainerNotes, setTrainerNotes] = useState<TrainerNote[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
+
+  // 면책 조항 동의 상태
+  const [showDisclaimer, setShowDisclaimer] = useState(false)
+
+  // 면책 조항 동의 상태
+  const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [trainerId, setTrainerId] = useState<string | null>(null)
   const [weekPrescribedCount, setWeekPrescribedCount] = useState(0)
   const [achievementRate, setAchievementRate] = useState(0)
@@ -102,6 +108,36 @@ export default function DashboardPage() {
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false))
   }, [router])
+
+  // 면책 조항 팝업 (첫 실행 시)
+  useEffect(() => {
+    if (user && user.role !== 'admin' && user.role !== 'trainer') {
+      const agreed = localStorage.getItem('sc_disclaimer_agreed')
+      if (!agreed) {
+        setShowDisclaimer(true)
+      }
+    }
+  }, [user])
+
+  const handleDisclaimerAgree = () => {
+    localStorage.setItem('sc_disclaimer_agreed', 'true')
+    setShowDisclaimer(false)
+  }
+
+  // 면책 조항 팝업 (첫 실행 시)
+  useEffect(() => {
+    if (user && user.role !== 'admin' && user.role !== 'trainer') {
+      const agreed = localStorage.getItem('sc_disclaimer_agreed')
+      if (!agreed) {
+        setShowDisclaimer(true)
+      }
+    }
+  }, [user])
+
+  const handleDisclaimerAgree = () => {
+    localStorage.setItem('sc_disclaimer_agreed', 'true')
+    setShowDisclaimer(false)
+  }
 
   // Realtime 구독 (환자/트레이너)
   useEffect(() => {
@@ -301,7 +337,7 @@ export default function DashboardPage() {
       const weekCount = exerciseData?.length || 0
       setWeekExercises(weekCount)
 
-      // 처방 달성률
+      // 목표 달성률
       const { data: rxData } = await supabase
         .from('prescriptions')
         .select('frequency_per_week')
@@ -633,7 +669,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mt-1">
               <div>
                 <p className="text-2xl font-bold">{trainerWeekActivity.prescriptions}건</p>
-                <p className="text-xs opacity-70">처방</p>
+                <p className="text-xs opacity-70">운동 제안</p>
               </div>
               <div>
                 <p className="text-2xl font-bold">{trainerWeekActivity.messages}건</p>
@@ -835,6 +871,76 @@ export default function DashboardPage() {
   // ===== 환자 대시보드 =====
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
+      {/* 면책 조항 팝업 */}
+      {showDisclaimer && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <span className="text-4xl">⚕️</span>
+                <h2 className="text-xl font-bold text-gray-900 mt-2">중요 고지</h2>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4 mb-4 text-sm text-gray-700 space-y-2">
+                <p className="font-semibold text-blue-800">어깨케어는 의료행위가 아닙니다.</p>
+                <p>본 서비스는 재활 운동 가이드를 제공하는 보조 도구로, 의사의 진료·진단·처방을 대체할 수 없습니다.</p>
+                <p>운동 시작 전 반드시 담당 의사와 상담하시기 바랍니다.</p>
+              </div>
+              <div className="bg-yellow-50 rounded-lg p-4 mb-4 text-sm text-gray-700 space-y-2">
+                <p className="font-semibold text-yellow-800">⚠️ 운동 시 주의사항</p>
+                <p>운동 중 통증이 심해지거나 불편함을 느끼면 즉시 중단하고 담당 의사와 상담하시기 바랍니다.</p>
+                <p>본 프로그램을 따라 운동하는 중 발생한 부상, 합병증, 건강 악화에 대해 어깨케어는 책임을 지지 않습니다.</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 mb-6 text-sm text-gray-700 space-y-2">
+                <p className="font-semibold text-gray-800">👨‍⚕️ 전문가 감수</p>
+                <p>본 프로그램의 운동 프로토콜은 정형외과 전문의와 물리치료사, 스포츠재활 전문 트레이너의 감수를 받았습니다.</p>
+                <p className="text-xs text-gray-500">감수 범위: 운동 동작의 안전성, 단계별 프로그램 구성, 운동 강도 및 빈도</p>
+              </div>
+              <button
+                onClick={handleDisclaimerAgree}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-xl transition"
+              >
+                확인했으며 동의합니다
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 면책 조항 팝업 */}
+      {showDisclaimer && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <span className="text-4xl">⚕️</span>
+                <h2 className="text-xl font-bold text-gray-900 mt-2">중요 고지</h2>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4 mb-4 text-sm text-gray-700 space-y-2">
+                <p className="font-semibold text-blue-800">어깨케어는 의료행위가 아닙니다.</p>
+                <p>본 서비스는 재활 운동 가이드를 제공하는 보조 도구로, 의사의 진료·진단·처방을 대체할 수 없습니다.</p>
+                <p>운동 시작 전 반드시 담당 의사와 상담하시기 바랍니다.</p>
+              </div>
+              <div className="bg-yellow-50 rounded-lg p-4 mb-4 text-sm text-gray-700 space-y-2">
+                <p className="font-semibold text-yellow-800">⚠️ 운동 시 주의사항</p>
+                <p>운동 중 통증이 심해지거나 불편함을 느끼면 즉시 중단하고 담당 의사와 상담하시기 바랍니다.</p>
+                <p>본 프로그램을 따라 운동하는 중 발생한 부상, 합병증, 건강 악화에 대해 어깨케어는 책임을 지지 않습니다.</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 mb-6 text-sm text-gray-700 space-y-2">
+                <p className="font-semibold text-gray-800">👨‍⚕️ 전문가 감수</p>
+                <p>본 프로그램의 운동 프로토콜은 정형외과 전문의와 물리치료사, 스포츠재활 전문 트레이너의 감수를 받았습니다.</p>
+                <p className="text-xs text-gray-500">감수 범위: 운동 동작의 안전성, 단계별 프로그램 구성, 운동 강도 및 빈도</p>
+              </div>
+              <button
+                onClick={handleDisclaimerAgree}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-xl transition"
+              >
+                확인했으며 동의합니다
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">어깨케어</h1>
@@ -878,7 +984,7 @@ export default function DashboardPage() {
               }`}>
                 {weekPrescribedCount > 0 ? `${achievementRate}%` : '-'}
               </p>
-              <p className="text-xs text-gray-500">처방 달성률</p>
+              <p className="text-xs text-gray-500">목표 달성률</p>
             </div>
             <div className="text-center">
               {painChange ? (
@@ -906,7 +1012,7 @@ export default function DashboardPage() {
           {weekPrescribedCount > 0 && (
             <div className="mb-3">
               <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span>처방 달성</span>
+                <span>목표 달성</span>
                 <span>{weekExercises}/{weekPrescribedCount}회</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-3">
@@ -964,19 +1070,19 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 처방된 운동 */}
+        {/* 등록된 운동 */}
         <div className="bg-white rounded-lg shadow-sm">
           <div className="p-2.5 border-b flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">오늘의 운동</h3>
             {prescriptions.length > 0 && (
-              <span className="text-xs text-blue-500">{prescriptions.length}개 처방</span>
+              <span className="text-xs text-blue-500">{prescriptions.length}개 운동</span>
             )}
           </div>
           <div className="p-3">
             {prescriptions.length === 0 ? (
               <div className="text-center py-4 text-gray-500">
                 <span className="text-2xl mb-2 block">📝</span>
-                <p className="text-xs">아직 처방된 운동이 없습니다</p>
+                <p className="text-xs">아직 등록된 운동이 없습니다</p>
               </div>
             ) : (
               <div className="space-y-2">

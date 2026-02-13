@@ -262,22 +262,22 @@ export default function TrainerPage() {
             </button>
             <div>
               <h1 className="text-lg font-bold text-gray-900">{selectedPatient.name}님</h1>
-              <p className="text-xs text-gray-500">운동 처방 관리</p>
+              <p className="text-xs text-gray-500">운동 제안 관리</p>
             </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* 현재 처방 목록 */}
+        {/* 현재 운동 제안 목록 */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">📋 현재 처방 운동</h2>
+            <h2 className="font-semibold text-gray-900">📋 현재 제안 운동</h2>
             <span className="text-sm text-gray-500">{currentPrescriptions.length}개</span>
           </div>
 
           {currentPrescriptions.length === 0 ? (
-            <p className="text-center text-gray-500 py-6">처방된 운동이 없습니다</p>
+            <p className="text-center text-gray-500 py-6">등록된 운동이 없습니다</p>
           ) : (
             <div className="space-y-3">
               {currentPrescriptions.map((rx) => (
@@ -288,7 +288,7 @@ export default function TrainerPage() {
                     {rx.resistance && <p className="text-xs text-gray-400">저항: {rx.resistance}</p>}
                     {rx.notes && <p className="text-xs text-blue-500 mt-1">💬 {rx.notes}</p>}
                     <p className="text-xs text-gray-400 mt-1">
-                      처방일: {new Date(rx.prescribed_at).toLocaleDateString('ko-KR')}
+                      등록일: {new Date(rx.prescribed_at).toLocaleDateString('ko-KR')}
                     </p>
                   </div>
                   <button
@@ -348,7 +348,7 @@ export default function TrainerPage() {
                         : 'bg-blue-500 text-white hover:bg-blue-600'
                     }`}
                   >
-                    {alreadyPrescribed ? '처방됨' : '+ 처방'}
+                    {alreadyPrescribed ? '제안됨' : '+ 제안'}
                   </button>
                 </div>
               )
@@ -452,7 +452,7 @@ export default function TrainerPage() {
                 disabled={saving}
                 className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 disabled:bg-blue-300 transition"
               >
-                {saving ? '저장 중...' : '처방 완료'}
+                {saving ? '저장 중...' : '제안 완료'}
               </button>
             </div>
           </div>
