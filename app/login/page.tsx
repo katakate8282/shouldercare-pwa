@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { saveToken, getToken } from '@/lib/token-storage'
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -55,7 +55,7 @@ function LoginContent() {
         })
           .then((res) => {
             if (res.ok) {
-              setIsLoggedIn(true)
+              router.push("/dashboard"); return
             }
             setAuthChecked(true)
           })
@@ -66,23 +66,19 @@ function LoginContent() {
     })
   }, [searchParams, router])
 
-  // 스플래시 타이머 (무조건 3초)
+  // 스플래시 타이머 (한번만 실행)
+  const splashDone = useRef(false)
   useEffect(() => {
+    if (splashDone.current) return
+    splashDone.current = true
     const timer = setTimeout(() => {
       setSplashFading(true)
       setTimeout(() => {
-        if (isLoggedIn) {
-          router.push('/dashboard')
-        } else {
-          setView('main')
-        }
+        setView('main')
       }, 500)
     }, 2500)
-
     return () => clearTimeout(timer)
-  }, [isLoggedIn, router])
-
-  const handleKakaoLogin = () => {
+  }, [])  const handleKakaoLogin = () => {
     setIsLoading(true)
     setError(null)
     window.location.href = '/api/auth/kakao'
