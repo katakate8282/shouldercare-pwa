@@ -59,6 +59,9 @@ export default function DashboardPage() {
   const [trainerNotes, setTrainerNotes] = useState<TrainerNote[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [trainerId, setTrainerId] = useState<string | null>(null)
+  const [weekPrescribedCount, setWeekPrescribedCount] = useState(0)
+  const [achievementRate, setAchievementRate] = useState(0)
+  const [painChange, setPainChange] = useState<{ first: number; latest: number } | null>(null)
 
   // 관리자용 state
   const [totalPatients, setTotalPatients] = useState(0)
@@ -295,7 +298,35 @@ export default function DashboardPage() {
         .eq('user_id', userId)
         .gte('completed_at', weekAgo.toISOString())
 
-      if (exerciseData) setWeekExercises(exerciseData.length)
+      const weekCount = exerciseData?.length || 0
+      setWeekExercises(weekCount)
+
+      // 처방 달성률
+      const { data: rxData } = await supabase
+        .from('prescriptions')
+        .select('frequency_per_week')
+        .eq('patient_id', userId)
+        .eq('status', 'active')
+
+      if (rxData && rxData.length > 0) {
+        const totalTarget = rxData.reduce((sum, p) => sum + (p.frequency_per_week || 0), 0)
+        setWeekPrescribedCount(totalTarget)
+        setAchievementRate(totalTarget > 0 ? Math.min(Math.round((weekCount / totalTarget) * 100), 100) : 0)
+      }
+
+      // 통증 변화
+      const { data: painLogs } = await supabase
+        .from('pain_logs')
+        .select('pain_level, logged_at')
+        .eq('user_id', userId)
+        .order('logged_at', { ascending: true })
+
+      if (painLogs && painLogs.length >= 2) {
+        setPainChange({
+          first: painLogs[0].pain_level,
+          latest: painLogs[painLogs.length - 1].pain_level,
+        })
+      }
 
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -829,39 +860,67 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-white rounded-lg p-2.5 shadow-sm">
-            <p className="text-xs text-gray-600 mb-0.5">이번 주 운동</p>
-            <p className="text-lg font-bold text-gray-900">{weekExercises}회</p>
-            <p className="text-xs text-gray-500">최근 7일</p>
-          </div>
-          <div className="bg-white rounded-lg p-2.5 shadow-sm">
-            <p className="text-xs text-gray-600 mb-0.5">오늘 통증</p>
-            <p className="text-lg font-bold text-gray-900">
-              {todayPain !== null ? todayPain : '-'}
-            </p>
-            <p className="text-xs text-gray-500">
-              {todayPain !== null ? '기록됨' : '아직 기록 없음'}
-            </p>
-          </div>
-        </div>
-
-        {/* 내 기록 바로가기 */}
+        {/* 이번 주 리포트 카드 (클릭→내 기록) */}
         <button
           onClick={() => router.push('/my-stats')}
-          className="w-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg p-3 text-white text-left hover:shadow-md transition"
+          className="w-full bg-white rounded-lg shadow-sm p-4 text-left hover:shadow-md transition"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">📊</span>
-              <div>
-                <p className="font-semibold text-sm">내 기록 · 레벨 · 순위</p>
-                <p className="text-xs text-white/70">주간 리포트와 운동 기록을 확인하세요</p>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">📊 이번 주 리포트</h3>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-600">{weekExercises}</p>
+              <p className="text-xs text-gray-500">운동 횟수</p>
+            </div>
+            <div className="text-center">
+              <p className={`text-2xl font-bold ${
+                achievementRate >= 80 ? 'text-green-600' :
+                achievementRate >= 50 ? 'text-yellow-600' : 'text-red-600'
+              }`}>
+                {weekPrescribedCount > 0 ? `${achievementRate}%` : '-'}
+              </p>
+              <p className="text-xs text-gray-500">처방 달성률</p>
+            </div>
+            <div className="text-center">
+              {painChange ? (
+                <>
+                  <p className={`text-2xl font-bold ${
+                    painChange.latest < painChange.first ? 'text-green-600' :
+                    painChange.latest > painChange.first ? 'text-red-600' : 'text-gray-600'
+                  }`}>
+                    {painChange.latest < painChange.first
+                      ? `↓${painChange.first - painChange.latest}`
+                      : painChange.latest > painChange.first
+                        ? `↑${painChange.latest - painChange.first}`
+                        : '→0'}
+                  </p>
+                  <p className="text-xs text-gray-500">통증 변화</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold text-gray-400">-</p>
+                  <p className="text-xs text-gray-500">통증 변화</p>
+                </>
+              )}
+            </div>
+          </div>
+          {weekPrescribedCount > 0 && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                <span>처방 달성</span>
+                <span>{weekExercises}/{weekPrescribedCount}회</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-3">
+                <div
+                  className={`h-3 rounded-full transition-all ${
+                    achievementRate >= 80 ? 'bg-green-500' :
+                    achievementRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${Math.min(achievementRate, 100)}%` }}
+                />
               </div>
             </div>
-            <span className="text-white/70">→</span>
-          </div>
+          )}
+          <p className="text-xs text-blue-500 text-center">내 기록 · 레벨 · 순위를 확인해 보세요 →</p>
         </button>
 
         {/* 트레이너에게 메시지 */}
