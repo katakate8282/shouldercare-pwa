@@ -161,6 +161,37 @@ export default function PainLogPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
+      {/* 응급 대응 팝업 */}
+      {showEmergency && painSpike && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <span className="text-5xl">🚨</span>
+                <h2 className="text-xl font-bold text-red-600 mt-2">심한 통증 감지</h2>
+                <p className="text-sm text-gray-500 mt-1">현재 통증: {painSpike.current}/10</p>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4 mb-4">
+                <p className="text-sm font-bold text-red-800 mb-2">🛑 즉시 취할 조치</p>
+                <div className="text-sm text-red-700 space-y-1">
+                  <p>1. ❄️ 얼음찜질 (15분)</p>
+                  <p>2. 💊 처방받은 진통제 복용</p>
+                  <p>3. 🛑 모든 운동 즉시 중단</p>
+                  <p>4. 📞 병원에 연락</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <p className="text-sm font-bold text-gray-800 mb-2">📞 긴급 연락처</p>
+                <div className="space-y-2">
+                  <a href="tel:119" className="block w-full text-center bg-red-500 text-white py-2.5 rounded-lg text-sm font-bold">🚑 119 응급전화</a>
+                  <button onClick={() => router.push("/messages")} className="block w-full text-center bg-blue-500 text-white py-2.5 rounded-lg text-sm font-bold">💬 트레이너에게 긴급 메시지</button>
+                </div>
+              </div>
+              <button onClick={() => { setShowEmergency(false); router.push("/dashboard") }} className="w-full py-3 rounded-xl text-gray-500 font-medium text-sm hover:bg-gray-50">확인하고 돌아가기</button>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
