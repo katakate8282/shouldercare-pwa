@@ -470,7 +470,7 @@ export default function TrainerPage() {
   const fetchPatientVideos = async (patientId: string) => {
     setPatientVideosLoading(true)
     try {
-      const res = await fetch(`/api/exercise-video?patient_id=${patientId}`, { credentials: 'include' })
+     const res = await fetchWithAuth(`/api/video-upload?patient_id=${patientId}`)
       const data = await res.json()
       if (data.videos) setPatientVideos(data.videos)
     } catch (err) {
