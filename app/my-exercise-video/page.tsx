@@ -3,8 +3,11 @@
 import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
+import { supabase } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import { checkSubscription } from '@/lib/subscription'
+
+const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30MB
 
 interface User {
   id: string
@@ -83,8 +86,16 @@ export default function MyExerciseVideoPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 100 * 1024 * 1024) {
-      alert('파일 크기는 100MB 이하만 가능합니다.')
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`파일 크기가 너무 큽니다.\n최대 30MB까지 업로드 가능합니다.\n선택한 파일: ${(file.size / (1024 * 1024)).toFixed(1)}MB`)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    const allowedTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/3gpp', 'video/3gpp2']
+    if (!file.type.startsWith('video/') && !allowedTypes.includes(file.type)) {
+      alert('동영상 파일만 업로드 가능합니다.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
 
@@ -98,20 +109,46 @@ export default function MyExerciseVideoPage() {
   }
 
   const handleUpload = async () => {
-    if (!selectedFile) return
+    if (!selectedFile || !user) return
     setUploading(true)
-    setUploadProgress('업로드 중...')
+    setUploadProgress('업로드 준비 중...')
 
     try {
-      const formData = new FormData()
-      formData.append('video', selectedFile)
-      formData.append('title', title || '운동 영상')
-      if (description) formData.append('description', description)
+      // 1. 클라이언트에서 Supabase Storage 직접 업로드
+      const ext = selectedFile.name.split('.').pop() || 'mp4'
+      const timestamp = Date.now()
+      const storagePath = `${user.id}/${timestamp}.${ext}`
+
+      setUploadProgress('영상 업로드 중...')
+
+      const { error: uploadError } = await supabase.storage
+        .from('user-exercise-videos')
+        .upload(storagePath, selectedFile, {
+          contentType: selectedFile.type,
+          upsert: false,
+        })
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError)
+        setUploadProgress('')
+        alert('업로드 실패: ' + uploadError.message)
+        setUploading(false)
+        return
+      }
+
+      // 2. API로 DB 레코드 생성
+      setUploadProgress('저장 중...')
 
       const res = await fetch('/api/exercise-video', {
         method: 'POST',
         credentials: 'include',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title || '운동 영상',
+          description: description || '',
+          storage_path: storagePath,
+          file_size_bytes: selectedFile.size,
+        }),
       })
 
       const data = await res.json()
@@ -125,11 +162,11 @@ export default function MyExerciseVideoPage() {
         }, 1000)
       } else {
         setUploadProgress('')
-        alert(data.error || '업로드 실패')
+        alert(data.error || 'DB 저장 실패')
       }
-    } catch (err) {
+    } catch (err: any) {
       setUploadProgress('')
-      alert('업로드 중 오류가 발생했습니다.')
+      alert('업로드 중 오류가 발생했습니다: ' + (err.message || ''))
     }
     setUploading(false)
   }
@@ -152,6 +189,7 @@ export default function MyExerciseVideoPage() {
 
   const resetUploadForm = () => {
     setSelectedFile(null)
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(null)
     setTitle('')
     setDescription('')
@@ -262,8 +300,8 @@ export default function MyExerciseVideoPage() {
           <div className="text-[11px] text-blue-600 space-y-0.5">
             <p>• 전신이 보이도록 1~2m 거리에서 촬영하세요</p>
             <p>• 밝은 곳에서 촬영하면 트레이너가 자세를 더 잘 볼 수 있어요</p>
-            <p>• 1세트 전체를 촬영하는 것을 추천합니다</p>
-            <p>• 최대 100MB까지 업로드 가능합니다</p>
+            <p>• 1세트 전체를 촬영하는 것을 추천합니다 (10~15초)</p>
+            <p>• 최대 30MB까지 업로드 가능합니다</p>
           </div>
         </div>
 
@@ -380,6 +418,9 @@ export default function MyExerciseVideoPage() {
               {selectedFile && (
                 <p className="text-xs text-gray-400">
                   {selectedFile.name} · {formatFileSize(selectedFile.size)}
+                  {selectedFile.size > 20 * 1024 * 1024 && (
+                    <span className="text-orange-500 ml-1">(대용량)</span>
+                  )}
                 </p>
               )}
 
