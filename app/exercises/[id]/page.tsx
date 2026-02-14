@@ -3,6 +3,8 @@
 import { getExerciseById, getDifficultyColor, getCategoryDisplayName, getSignedVideoUrl, getSignedThumbnailUrl } from '@/lib/data/exercises'
 import type { Exercise } from '@/lib/data/exercises'
 import { useRouter } from 'next/navigation'
+import { fetchAuthMe } from '@/lib/fetch-auth'
+import { supabase } from '@/lib/supabase/client'
 import { useState, useEffect } from 'react'
 
 export default function ExerciseDetailPage({ params }: { params: { id: string } }) {
@@ -12,10 +14,11 @@ export default function ExerciseDetailPage({ params }: { params: { id: string } 
   const [showVideo, setShowVideo] = useState(false)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
-
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const viewStartRef = { current: 0 }
   useEffect(() => {
     const load = async () => {
-      const id = parseInt(params.id)
+      fetchAuthMe().then(r => r.ok ? r.json() : null).then(d => { if(d?.user) setCurrentUser(d.user) }).catch(() => {})      const id = parseInt(params.id)
       if (isNaN(id)) {
         setLoading(false)
         return
@@ -91,6 +94,9 @@ export default function ExerciseDetailPage({ params }: { params: { id: string } 
                   playsInline
                   controlsList="nodownload"
                   onContextMenu={(e) => e.preventDefault()}
+                  onPlay={() => { viewStartRef.current = Date.now() }}
+                  onEnded={async () => { if(currentUser && exercise) { await supabase.from("video_views").insert({ user_id: currentUser.id, exercise_id: exercise.id, exercise_name: exercise.name_ko, watch_duration_seconds: Math.round((Date.now() - viewStartRef.current)/1000), completed: true, source: "detail" }) } }}
+                  onPause={async () => { if(currentUser && exercise && viewStartRef.current > 0) { const dur = Math.round((Date.now() - viewStartRef.current)/1000); if(dur >= 5) { await supabase.from("video_views").insert({ user_id: currentUser.id, exercise_id: exercise.id, exercise_name: exercise.name_ko, watch_duration_seconds: dur, completed: false, source: "detail" }) }; viewStartRef.current = 0 } }}
                   className="w-full h-full"
                 >
                   브라우저가 비디오를 지원하지 않습니다.
