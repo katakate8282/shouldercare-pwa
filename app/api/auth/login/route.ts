@@ -20,7 +20,7 @@ function generateToken(userId: string, email: string): string {
     exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
     iat: Date.now(),
   }
-  const secret = process.env.JWT_SECRET
+  const secret = process.env.JWT_SECRET as string
   const data = JSON.stringify(payload)
   const signature = crypto.createHmac('sha256', secret).update(data).digest('hex')
   return Buffer.from(JSON.stringify({ data: payload, sig: signature })).toString('base64url')
