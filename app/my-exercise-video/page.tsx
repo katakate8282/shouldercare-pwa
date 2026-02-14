@@ -79,22 +79,59 @@ export default function MyExerciseVideoPage() {
     setVideosLoading(false)
   }
 
+  const getTodayUploadCount = () => {
+    const today = new Date().toLocaleDateString('ko-KR')
+    return videos.filter(v => new Date(v.created_at).toLocaleDateString('ko-KR') === today).length
+  }
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 100 * 1024 * 1024) {
-      alert('파일 크기는 100MB 이하만 가능합니다.')
+    // 30MB 제한
+    if (file.size > 30 * 1024 * 1024) {
+      alert('파일 크기는 30MB 이하만 가능합니다.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
 
-    setSelectedFile(file)
-    setPreviewUrl(URL.createObjectURL(file))
-    if (!title) {
-      const dateStr = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
-      setTitle(`${dateStr} 운동 영상`)
+    // 하루 5개 제한
+    if (getTodayUploadCount() >= 5) {
+      alert('하루 최대 5개까지 업로드할 수 있습니다.\n내일 다시 시도해주세요.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
     }
-    setShowUploadModal(true)
+
+    // 15초 체크 (비디오 메타데이터 확인)
+    const videoEl = document.createElement('video')
+    videoEl.preload = 'metadata'
+    videoEl.onloadedmetadata = () => {
+      URL.revokeObjectURL(videoEl.src)
+      if (videoEl.duration > 15) {
+        alert('영상 길이는 최대 15초까지 가능합니다.\n짧은 영상으로 다시 촬영해주세요.')
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
+      }
+      // 통과 시 업로드 모달 열기
+      setSelectedFile(file)
+      setPreviewUrl(URL.createObjectURL(file))
+      if (!title) {
+        const dateStr = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+        setTitle(`${dateStr} 운동 영상`)
+      }
+      setShowUploadModal(true)
+    }
+    videoEl.onerror = () => {
+      // 메타데이터 로드 실패 시 그냥 진행
+      setSelectedFile(file)
+      setPreviewUrl(URL.createObjectURL(file))
+      if (!title) {
+        const dateStr = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+        setTitle(`${dateStr} 운동 영상`)
+      }
+      setShowUploadModal(true)
+    }
+    videoEl.src = URL.createObjectURL(file)
   }
 
   const handleUpload = async () => {
@@ -224,6 +261,7 @@ export default function MyExerciseVideoPage() {
   if (!user) return null
 
   const subStatus = checkSubscription(user as any)
+  const todayCount = getTodayUploadCount()
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
@@ -243,10 +281,25 @@ export default function MyExerciseVideoPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-4 space-y-4">
+        {/* 🔴 업로드 제한 안내 */}
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+          <p className="text-xs text-red-700 font-bold mb-1">⚠️ 업로드 제한 안내</p>
+          <p className="text-[11px] text-red-600">
+            최대 <strong>15초 / 30MB</strong> 이하 동영상만 업로드 가능합니다.
+          </p>
+          <p className="text-[11px] text-red-500 mt-0.5">
+            오늘 업로드: {todayCount}/5개
+          </p>
+        </div>
+
         {/* 업로드 버튼 */}
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => {
+              if (todayCount >= 5) {
+                alert('하루 최대 5개까지 업로드할 수 있습니다.\n내일 다시 시도해주세요.')
+                return
+              }
               if (fileInputRef.current) {
                 fileInputRef.current.accept = 'video/*'
                 fileInputRef.current.capture = 'environment'
@@ -254,7 +307,7 @@ export default function MyExerciseVideoPage() {
               }
             }}
             className="rounded-xl p-4 text-center text-white"
-            style={{ background: 'linear-gradient(135deg, #059669, #10B981)' }}
+            style={{ background: todayCount >= 5 ? '#9CA3AF' : 'linear-gradient(135deg, #059669, #10B981)' }}
           >
             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
@@ -265,6 +318,10 @@ export default function MyExerciseVideoPage() {
 
           <button
             onClick={() => {
+              if (todayCount >= 5) {
+                alert('하루 최대 5개까지 업로드할 수 있습니다.\n내일 다시 시도해주세요.')
+                return
+              }
               if (fileInputRef.current) {
                 fileInputRef.current.accept = 'video/*'
                 fileInputRef.current.removeAttribute('capture')
@@ -272,7 +329,7 @@ export default function MyExerciseVideoPage() {
               }
             }}
             className="rounded-xl p-4 text-center text-white"
-            style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
+            style={{ background: todayCount >= 5 ? '#9CA3AF' : 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
           >
             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -298,7 +355,7 @@ export default function MyExerciseVideoPage() {
             <p>• 전신이 보이도록 1~2m 거리에서 촬영하세요</p>
             <p>• 밝은 곳에서 촬영하면 트레이너가 자세를 더 잘 볼 수 있어요</p>
             <p>• 1세트 전체를 촬영하는 것을 추천합니다</p>
-            <p>• 최대 100MB까지 업로드 가능합니다</p>
+            <p>• 최대 30MB까지 업로드 가능합니다</p>
           </div>
         </div>
 
