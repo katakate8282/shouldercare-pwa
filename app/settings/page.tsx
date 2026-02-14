@@ -56,6 +56,11 @@ export default function SettingsPage() {
 
   const [notifEnabled, setNotifEnabled] = useState(false)
 
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [withdrawConfirm, setWithdrawConfirm] = useState('')
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawMessage, setWithdrawMessage] = useState('')
+
   useEffect(() => {
     fetchAuthMe()
       .then(res => { if (!res.ok) throw new Error(''); return res.json() })
@@ -164,6 +169,34 @@ export default function SettingsPage() {
       }
     } else {
       alert('알림을 끄려면 브라우저 설정에서 직접 변경해주세요.')
+    }
+  }
+
+  async function handleWithdraw() {
+    if (withdrawConfirm !== '탈퇴합니다') {
+      setWithdrawMessage('❌ "탈퇴합니다"를 정확히 입력해주세요.')
+      return
+    }
+    setWithdrawing(true)
+    setWithdrawMessage('')
+    try {
+      const res = await fetchWithAuth('/api/auth/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmText: withdrawConfirm }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        await removeToken()
+        alert('회원 탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.')
+        router.push('/login')
+      } else {
+        setWithdrawMessage('❌ ' + (data.error || '탈퇴 처리 실패'))
+      }
+    } catch {
+      setWithdrawMessage('❌ 서버 연결 오류')
+    } finally {
+      setWithdrawing(false)
     }
   }
 
@@ -448,6 +481,14 @@ export default function SettingsPage() {
         >
           로그아웃
         </button>
+
+        {/* Withdraw */}
+        <button
+          onClick={() => { setWithdrawConfirm(''); setWithdrawMessage(''); setShowWithdrawModal(true) }}
+          className="w-full text-gray-400 text-sm py-2 underline"
+        >
+          회원 탈퇴
+        </button>
       </main>
 
       {/* Hospital Code Modal */}
@@ -564,6 +605,48 @@ export default function SettingsPage() {
               className="w-full mt-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition"
             >
               {pwSaving ? '변경 중...' : '비밀번호 변경'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw Modal */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-5">
+          <div className="bg-white rounded-2xl p-7 w-full max-w-sm">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-bold text-red-600">⚠️ 회원 탈퇴</h3>
+              <button onClick={() => setShowWithdrawModal(false)} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <div className="bg-red-50 rounded-lg p-4 mb-4">
+              <p className="text-sm text-red-700 font-semibold mb-2">탈퇴 시 다음 데이터가 삭제됩니다:</p>
+              <ul className="text-sm text-red-600 space-y-1">
+                <li>• 업로드한 운동 영상</li>
+                <li>• 메시지 내역</li>
+                <li>• 구독 정보</li>
+                <li>• 개인정보 (이름, 이메일 등)</li>
+              </ul>
+              <p className="text-xs text-red-500 mt-3">⚠️ 이 작업은 되돌릴 수 없습니다.</p>
+            </div>
+            <label className="text-sm text-gray-500 mb-1 block">
+              확인을 위해 <strong>&quot;탈퇴합니다&quot;</strong>를 입력해주세요.
+            </label>
+            <input
+              type="text"
+              placeholder="탈퇴합니다"
+              value={withdrawConfirm}
+              onChange={e => setWithdrawConfirm(e.target.value)}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+            />
+            {withdrawMessage && (
+              <div className={msgStyle(withdrawMessage)}>{withdrawMessage}</div>
+            )}
+            <button
+              onClick={handleWithdraw}
+              disabled={withdrawing || withdrawConfirm !== '탈퇴합니다'}
+              className="w-full mt-4 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition"
+            >
+              {withdrawing ? '처리 중...' : '회원 탈퇴'}
             </button>
           </div>
         </div>
