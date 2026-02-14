@@ -1,6 +1,6 @@
 'use client'
 
-import { fetchAuthMe } from '@/lib/fetch-auth'
+import { fetchAuthMe, fetchWithAuth } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -470,7 +470,7 @@ export default function TrainerPage() {
   const fetchPatientVideos = async (patientId: string) => {
     setPatientVideosLoading(true)
     try {
-      const res = await fetch(`/api/exercise-video?patient_id=${patientId}`, { credentials: 'include' })
+      const res = await fetchWithAuth('/api/video-upload?patient_id=' + patientId)
       const data = await res.json()
       if (data.videos) setPatientVideos(data.videos)
     } catch (err) {
@@ -485,11 +485,10 @@ export default function TrainerPage() {
     setSavingFeedback(true)
 
     try {
-      const res = await fetch('/api/exercise-video', {
+      const res = await fetchWithAuth('/api/video-upload', {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ video_id: feedbackVideoId, feedback: feedbackText.trim() }),
+        body: JSON.stringify({ record_id: feedbackVideoId, feedback: feedbackText.trim() }),
       })
       const data = await res.json()
       if (data.success) {
