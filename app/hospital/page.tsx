@@ -1,5 +1,7 @@
 'use client'
 
+import { supabase } from '@/lib/supabase/client'
+
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -43,7 +45,7 @@ interface Trainer {
   active_patient_count: number
 }
 
-type Tab = 'patients' | 'trainers' | 'info'
+type Tab = 'patients' | 'trainers' | 'billing' | 'info'
 
 const HOSPITAL_TOKEN_KEY = 'hospital_token'
 
@@ -324,6 +326,7 @@ export default function HospitalPage() {
         {[
           { key: 'patients' as Tab, label: '👥 환자 관리' },
           { key: 'trainers' as Tab, label: '🏋️ 트레이너' },
+          { key: 'billing' as Tab, label: '💰 청구' },
           { key: 'info' as Tab, label: 'ℹ️ 병원 정보' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
@@ -537,6 +540,58 @@ export default function HospitalPage() {
         )}
 
         {/* 병원 정보 탭 */}
+
+        {tab === "billing" && hospital && (() => {
+          const PLANS: Record<string, { base: number; included: number; extra: number }> = {
+            basic: { base: 100000, included: 10, extra: 10000 },
+            premium: { base: 500000, included: 50, extra: 8000 },
+          }
+          const plan = PLANS[hospital.plan_type] || PLANS.basic
+          const activeCount = patients.filter((p: any) => p.status === "active").length
+          const extraCount = Math.max(0, activeCount - plan.included)
+          const extraTotal = extraCount * plan.extra
+          const total = plan.base + extraTotal
+          const vat = Math.round(total * 0.1)
+          const grand = total + vat
+          const now = new Date()
+          const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+          return (
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>💰 이번 달 청구 현황</h2>
+              <div style={{ background: "white", borderRadius: 12, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+                <div style={{ textAlign: "center", marginBottom: 20 }}>
+                  <p style={{ fontSize: 12, color: "#888" }}>{monthStr}</p>
+                  <p style={{ fontSize: 28, fontWeight: 700, color: "#1a1a1a", margin: "8px 0" }}>₩{grand.toLocaleString()}</p>
+                  <p style={{ fontSize: 12, color: "#888" }}>VAT 포함</p>
+                </div>
+                <div style={{ borderTop: "1px solid #eee", paddingTop: 16, display: "flex", flexDirection: "column", gap: 12, fontSize: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#888" }}>플랜</span><span style={{ fontWeight: 600 }}>{hospital.plan_type === "premium" ? "프리미엄" : "베이직"}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#888" }}>기본료</span><span>₩{plan.base.toLocaleString()}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#888" }}>포함 환자</span><span>{plan.included}명</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#888" }}>활성 환자</span><span style={{ fontWeight: 600 }}>{activeCount}명</span></div>
+                  {extraCount > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#e53e3e" }}><span>초과 환자 ({extraCount}명 × ₩{plan.extra.toLocaleString()})</span><span style={{ fontWeight: 600 }}>₩{extraTotal.toLocaleString()}</span></div>
+                  )}
+                  <div style={{ borderTop: "1px solid #eee", paddingTop: 12, display: "flex", justifyContent: "space-between" }}><span style={{ color: "#888" }}>소계</span><span>₩{total.toLocaleString()}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#888" }}>VAT (10%)</span><span>₩{vat.toLocaleString()}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 700 }}><span>합계</span><span style={{ color: "#667eea" }}>₩{grand.toLocaleString()}</span></div>
+                </div>
+                <button onClick={async () => {
+                  try {
+                    const { error } = await supabase.from("hospital_invoices").upsert({
+                      hospital_id: hospital.id, billing_month: monthStr, plan_type: hospital.plan_type,
+                      base_fee: plan.base, included_patients: plan.included, active_patients: activeCount,
+                      extra_patients: extraCount, extra_fee_per_patient: plan.extra, extra_total: extraTotal,
+                      total_amount: total, vat: vat, grand_total: grand, status: "pending"
+                    }, { onConflict: "hospital_id,billing_month" });
+                    if (error) throw error;
+                    alert("청구서가 저장되었습니다!");
+                  } catch (e: any) { alert("저장 실패: " + e.message); }
+                }} style={{ marginTop: 20, width: "100%", padding: "14px", background: "#667eea", color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>📄 청구서 저장</button>
+              </div>
+            </div>
+          )
+        })()}
         {tab === 'info' && hospital && (
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>병원 정보</h2>
