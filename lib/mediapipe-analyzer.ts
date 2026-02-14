@@ -137,41 +137,41 @@ export async function analyzePose(frames: HTMLCanvasElement[]): Promise<FrameDat
 }
 
 /**
- * MediaPipe Vision 동적 로드
+ * MediaPipe Vision 동적 로드 (런타임 전용, webpack 빌드 회피)
  */
 async function loadMediaPipeVision(): Promise<any> {
-  if ((window as any).__mediapipeVision) {
+  if (typeof window !== 'undefined' && (window as any).__mediapipeVision) {
     return (window as any).__mediapipeVision
   }
 
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs'
-    script.type = 'module'
+  const CDN_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs'
 
-    // ESM 모듈은 script 태그로 직접 로드가 어려우므로 dynamic import 사용
-    import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs' as any)
-      .then((module) => {
-        (window as any).__mediapipeVision = module
-        resolve(module)
-      })
-      .catch(() => {
-        // fallback: 글로벌 스크립트 방식
-        const s = document.createElement('script')
-        s.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14'
-        s.onload = () => {
-          const v = (window as any).vision || (window as any).mediapipeVision
-          if (v) {
-            (window as any).__mediapipeVision = v
-            resolve(v)
-          } else {
-            reject(new Error('MediaPipe Vision 로드 실패'))
-          }
+  try {
+    // webpack이 번들하지 않도록 Function 생성자로 dynamic import 실행
+    const dynamicImport = new Function('url', 'return import(url)')
+    const module = await dynamicImport(CDN_URL)
+    if (typeof window !== 'undefined') {
+      (window as any).__mediapipeVision = module
+    }
+    return module
+  } catch {
+    // fallback: script 태그로 글로벌 로드
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script')
+      s.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14'
+      s.onload = () => {
+        const v = (window as any).vision || (window as any).mediapipeVision
+        if (v) {
+          (window as any).__mediapipeVision = v
+          resolve(v)
+        } else {
+          reject(new Error('MediaPipe Vision 로드 실패'))
         }
-        s.onerror = () => reject(new Error('MediaPipe Vision 스크립트 로드 실패'))
-        document.head.appendChild(s)
-      })
-  })
+      }
+      s.onerror = () => reject(new Error('MediaPipe Vision 스크립트 로드 실패'))
+      document.head.appendChild(s)
+    })
+  }
 }
 
 /**
