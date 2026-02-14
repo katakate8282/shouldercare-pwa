@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
-
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex')
-}
 
 function generateToken(userId: string, email: string): string {
   const payload = {
@@ -19,7 +16,7 @@ function generateToken(userId: string, email: string): string {
     exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
     iat: Date.now(),
   }
-  const secret = process.env.TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'shouldercare-secret'
+  const secret = process.env.JWT_SECRET
   const data = JSON.stringify(payload)
   const signature = crypto.createHmac('sha256', secret).update(data).digest('hex')
   return Buffer.from(JSON.stringify({ data: payload, sig: signature })).toString('base64url')
@@ -47,12 +44,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이미 가입된 이메일입니다.' }, { status: 409 })
     }
 
+    const passwordHash = await bcrypt.hash(password, 10)
+
     const { data: user, error: dbError } = await supabase
       .from('users')
       .insert({
         email,
         name,
-        password_hash: hashPassword(password),
+        password_hash: passwordHash,
         onboarding_completed: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -74,7 +73,6 @@ export async function POST(request: NextRequest) {
       redirect: '/onboarding',
     })
 
-    // 쿠키도 동시에 설정 (standalone PWA 백업용)
     response.cookies.set('session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

@@ -13,7 +13,7 @@ async function getUser(req: NextRequest) {
   const token = cookieStore.get('sc_token')?.value
   if (!token) return null
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret-key-for-development')
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET)
     const { payload } = await jose.jwtVerify(token, secret)
     return payload as any
   } catch {

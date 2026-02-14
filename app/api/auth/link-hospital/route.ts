@@ -12,7 +12,7 @@ function verifyToken(token: string): { userId: string; email: string } | null {
   try {
     const decoded = JSON.parse(Buffer.from(token, 'base64url').toString())
     const { data, sig } = decoded
-    const secret = process.env.TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'shouldercare-secret'
+    const secret = process.env.JWT_SECRET
     const expectedSig = crypto.createHmac('sha256', secret).update(JSON.stringify(data)).digest('hex')
     if (sig !== expectedSig) return null
     if (data.exp < Date.now()) return null
