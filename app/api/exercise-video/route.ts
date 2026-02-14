@@ -85,15 +85,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ used: count || 0, remaining: Math.max(0, 5 - (count || 0)), limit: 5 })
   }
 
+  // 오늘 업로드 카운트 조회 (삭제된 것 포함 - 삭제해도 카운트 유지)
+  if (action === 'get_today_upload_count') {
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
+    const { count, error } = await supabaseAdmin
+      .from('user_exercise_videos')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .gte('created_at', todayStart.toISOString())
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ today_count: count || 0, limit: 5 })
+  }
+
   let targetUserId = user.id
   if (patientId && (user.role === 'trainer' || user.role === 'admin')) {
     targetUserId = patientId
   }
 
+  // 삭제된 영상은 목록에서 제외
   const { data, error } = await supabaseAdmin
     .from('user_exercise_videos')
     .select('*, exercises:exercise_id(id, name_ko, category, ai_analysis_enabled)')
     .eq('user_id', targetUserId)
+    .neq('status', 'deleted')
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -216,7 +233,7 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ success: true })
 }
 
-// DELETE: 영상 삭제
+// DELETE: 영상 삭제 (soft delete - 스토리지 파일만 삭제, DB는 status 변경)
 export async function DELETE(req: NextRequest) {
   const user = await getUserFromRequest(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -235,14 +252,21 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Not found or forbidden' }, { status: 404 })
   }
 
+  // 스토리지 파일 삭제 (용량 절약)
   await supabaseAdmin.storage
     .from(BUCKET_NAME)
     .remove([video.storage_path])
 
-  await supabaseAdmin
+  // DB는 soft delete (status를 'deleted'로 변경)
+  const { error } = await supabaseAdmin
     .from('user_exercise_videos')
-    .delete()
+    .update({
+      status: 'deleted',
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', videoId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })
 }
