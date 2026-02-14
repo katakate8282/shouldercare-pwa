@@ -324,7 +324,7 @@ export default function SettingsPage() {
               <input type="text" placeholder="PLT-12345678" value={hospitalCodeInput}
                 onChange={e => { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (v.length > 3 && !v.includes('-')) v = v.slice(0, 3) + '-' + v.slice(3); setHospitalCodeInput(v) }}
                 required className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-center text-lg font-mono tracking-wider focus:border-blue-500 focus:outline-none" />
-              {hospitalMessage && <div className={`mt-3 p-3 rounded-lg text-sm ${hospitalMessage.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{hospitalMessage}</div>}
+              {hospitalMessage && <div className={`mt-3 p-3 rounded-lg text-sm ${hospitalMessage.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>{hospitalMessage}</div>}
               <button type="submit" disabled={hospitalLinking || !hospitalCodeInput} className="w-full mt-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition">
                 {hospitalLinking ? '연결 중...' : '코드 등록'}
               </button>
@@ -378,7 +378,7 @@ export default function SettingsPage() {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none" />
               </div>
             </div>
-            {pwMessage && <div className={`mt-3 p-3 rounded-lg text-sm ${pwMessage.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{pwMessage}</div>}
+            {pwMessage && <div className={`mt-3 p-3 rounded-lg text-sm ${pwMessage.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>{pwMessage}</div>}
             <button onClick={handlePasswordChange} disabled={pwSaving || !currentPw || !newPw || !confirmPw}
               className="w-full mt-4 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition">
               {pwSaving ? '변경 중...' : '비밀번호 변경'}
