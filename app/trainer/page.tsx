@@ -97,6 +97,18 @@ interface ExerciseItem {
   video_filename: string | null
 }
 
+interface PatientVideo {
+  id: string
+  title: string
+  description: string | null
+  video_url: string | null
+  status: 'uploaded' | 'reviewed' | 'archived'
+  trainer_feedback: string | null
+  feedback_at: string | null
+  file_size_bytes: number | null
+  created_at: string
+}
+
 // 한국 시간 기준 오늘 시작 (UTC)
 function getKSTTodayStartUTC(): string {
   const now = new Date()
@@ -157,6 +169,14 @@ export default function TrainerPage() {
   const [newNoteIsPublic, setNewNoteIsPublic] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
   const [totalUnread, setTotalUnread] = useState(0)
+
+  // 환자 영상 관련 state
+  const [patientVideos, setPatientVideos] = useState<PatientVideo[]>([])
+  const [patientVideosLoading, setPatientVideosLoading] = useState(false)
+  const [feedbackVideoId, setFeedbackVideoId] = useState<string | null>(null)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [savingFeedback, setSavingFeedback] = useState(false)
+  const [playingVideoUrl, setPlayingVideoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAuthMe()
@@ -446,15 +466,54 @@ export default function TrainerPage() {
     setDetailLoading(false)
   }
 
+  // 환자 영상 목록 조회
+  const fetchPatientVideos = async (patientId: string) => {
+    setPatientVideosLoading(true)
+    try {
+      const res = await fetch(`/api/exercise-video?patient_id=${patientId}`, { credentials: 'include' })
+      const data = await res.json()
+      if (data.videos) setPatientVideos(data.videos)
+    } catch (err) {
+      console.error('Failed to fetch patient videos:', err)
+    }
+    setPatientVideosLoading(false)
+  }
+
+  // 트레이너 피드백 저장
+  const handleSaveFeedback = async () => {
+    if (!feedbackVideoId || !feedbackText.trim()) return
+    setSavingFeedback(true)
+
+    try {
+      const res = await fetch('/api/exercise-video', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_id: feedbackVideoId, feedback: feedbackText.trim() }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setFeedbackVideoId(null)
+        setFeedbackText('')
+        if (selectedPatient) fetchPatientVideos(selectedPatient.id)
+      } else {
+        alert(data.error || '피드백 저장 실패')
+      }
+    } catch (err) {
+      alert('피드백 저장 중 오류')
+    }
+    setSavingFeedback(false)
+  }
+
   const handleSelectPatient = (patient: Patient) => {
     setSelectedPatient(patient)
     setViewMode('detail')
     fetchPatientDetail(patient)
+    fetchPatientVideos(patient.id)
   }
 
   const handleGoToPrescribe = () => {
     setViewMode('prescribe')
-    // 운동 라이브러리가 아직 로드 안 됐으면 로드
     if (exerciseLibrary.length === 0) {
       fetchExerciseLibrary()
     }
@@ -532,7 +591,6 @@ export default function TrainerPage() {
     setSavingNote(false)
   }
 
-  // DB 데이터 기반 동적 카테고리
   const categories = ['전체', ...Array.from(new Set(exerciseLibrary.map(e => e.category))).sort()]
 
   const filteredExercises = exerciseLibrary.filter(e => {
@@ -575,7 +633,6 @@ export default function TrainerPage() {
     return `${days}일 전`
   }
 
-  // 난이도 표시용
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case '매우 낮음': return 'bg-green-100 text-green-700'
@@ -585,6 +642,12 @@ export default function TrainerPage() {
       case '높음': return 'bg-red-100 text-red-700'
       default: return 'bg-gray-100 text-gray-700'
     }
+  }
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return ''
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
   }
 
   if (loading) {
@@ -759,7 +822,7 @@ export default function TrainerPage() {
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <button onClick={() => { setSelectedPatient(null); setViewMode('list') }} className="text-gray-600">
+                <button onClick={() => { setSelectedPatient(null); setViewMode('list'); setPatientVideos([]) }} className="text-gray-600">
                   <span className="text-2xl">←</span>
                 </button>
                 <div>
@@ -907,6 +970,100 @@ export default function TrainerPage() {
               )}
             </div>
 
+            {/* 환자 운동 영상 */}
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-900">🎥 환자 운동 영상</h3>
+                <span className="text-sm text-gray-500">{patientVideos.length}개</span>
+              </div>
+
+              {patientVideosLoading ? (
+                <p className="text-center text-gray-400 py-4 text-sm">불러오는 중...</p>
+              ) : patientVideos.length === 0 ? (
+                <p className="text-center text-gray-400 py-4 text-sm">업로드된 영상이 없습니다</p>
+              ) : (
+                <div className="space-y-3">
+                  {patientVideos.map((video) => (
+                    <div key={video.id} className="border rounded-lg p-3">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className="font-semibold text-sm text-gray-900">{video.title}</p>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              video.status === 'reviewed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {video.status === 'reviewed' ? '피드백 완료' : '검토 대기'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-400">
+                            {new Date(video.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {video.file_size_bytes ? ` · ${formatFileSize(video.file_size_bytes)}` : ''}
+                          </p>
+                          {video.description && <p className="text-xs text-gray-500 mt-1">{video.description}</p>}
+                        </div>
+                        {video.video_url && (
+                          <button
+                            onClick={() => setPlayingVideoUrl(video.video_url)}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center bg-blue-500 shrink-0 ml-2"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 기존 피드백 표시 */}
+                      {video.trainer_feedback && (
+                        <div className="bg-green-50 border border-green-100 rounded-lg p-2.5 mt-2">
+                          <p className="text-[11px] font-bold text-green-800 mb-0.5">내 피드백</p>
+                          <p className="text-xs text-green-700">{video.trainer_feedback}</p>
+                          {video.feedback_at && (
+                            <p className="text-[10px] text-green-500 mt-1">{new Date(video.feedback_at).toLocaleDateString('ko-KR')}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 피드백 작성/수정 */}
+                      {feedbackVideoId === video.id ? (
+                        <div className="mt-2 space-y-2">
+                          <textarea
+                            value={feedbackText}
+                            onChange={(e) => setFeedbackText(e.target.value)}
+                            placeholder="자세 교정 포인트, 잘한 점, 개선할 점 등을 작성해주세요"
+                            className="w-full border rounded-lg px-3 py-2 text-sm h-20 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setFeedbackVideoId(null); setFeedbackText('') }}
+                              className="flex-1 py-2 rounded-lg border text-gray-600 text-sm"
+                            >
+                              취소
+                            </button>
+                            <button
+                              onClick={handleSaveFeedback}
+                              disabled={savingFeedback || !feedbackText.trim()}
+                              className="flex-1 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium disabled:bg-blue-300"
+                            >
+                              {savingFeedback ? '저장 중...' : '피드백 저장'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setFeedbackVideoId(video.id)
+                            setFeedbackText(video.trainer_feedback || '')
+                          }}
+                          className="mt-2 w-full py-2 rounded-lg border border-blue-200 text-blue-600 text-sm font-medium hover:bg-blue-50 transition"
+                        >
+                          {video.trainer_feedback ? '✏️ 피드백 수정' : '✍️ 피드백 작성'}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* 현재 운동 제안 */}
             <div className="bg-white rounded-lg shadow-sm p-4">
               <div className="flex items-center justify-between mb-3">
@@ -988,6 +1145,26 @@ export default function TrainerPage() {
             </div>
           </main>
         ) : null}
+
+        {/* 영상 재생 모달 */}
+        {playingVideoUrl && (
+          <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-lg">
+              <div className="flex justify-end mb-3">
+                <button onClick={() => setPlayingVideoUrl(null)} className="text-white/70 text-2xl">×</button>
+              </div>
+              <div className="rounded-xl overflow-hidden bg-black">
+                <video
+                  src={playingVideoUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="w-full max-h-[70vh] object-contain"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
