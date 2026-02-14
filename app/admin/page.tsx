@@ -149,7 +149,7 @@ export default function AdminPage() {
     if (data) {
       setAllUsers(data)
       setTrainers(data.filter(u => u.role === 'trainer'))
-      setPatients(data.filter(u => u.role !== 'trainer' && u.role !== 'admin' && u.role !== 'hospital_admin'))
+      setPatients(data.filter(u => u.role !== 'trainer'))
     }
   }
 
@@ -829,7 +829,7 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">역할</span><span className="font-medium">{selectedMember.role === 'trainer' ? '트레이너' : selectedMember.role === 'admin' ? '관리자' : '환자'}</span></div>
+                <div className="flex justify-between text-sm items-center"><span className="text-gray-500">역할</span><select value={selectedMember.role || "patient"} onChange={async (e) => { const newRole = e.target.value; await supabase.from("users").update({ role: newRole }).eq("id", selectedMember.id); setSelectedMember({...selectedMember, role: newRole}); fetchAll(); }} className="text-sm font-medium border rounded px-2 py-1"><option value="patient">환자</option><option value="trainer">트레이너</option><option value="admin">관리자</option></select></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">구독</span><span className="font-medium">{
                   selectedMember.subscription_type === 'PREMIUM' ? '프리미엄' :
                   selectedMember.subscription_type === 'PLATINUM_PATIENT' ? '플래티넘' :
