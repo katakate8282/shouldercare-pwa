@@ -8,6 +8,8 @@ import BottomNav from '@/components/BottomNav'
 import { checkSubscription } from '@/lib/subscription'
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30MB
+const MAX_DURATION = 15 // 15초
+const BUCKET_NAME = 'user-videos'
 
 interface User {
   id: string
@@ -36,7 +38,6 @@ export default function MyExerciseVideoPage() {
   const [videos, setVideos] = useState<ExerciseVideo[]>([])
   const [videosLoading, setVideosLoading] = useState(false)
 
-  // 업로드 관련
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
@@ -46,11 +47,12 @@ export default function MyExerciseVideoPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // 영상 재생 모달
   const [playingVideo, setPlayingVideo] = useState<ExerciseVideo | null>(null)
-
-  // 삭제 확인
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // 길이/용량 초과 안내 모달
+  const [showDurationAlert, setShowDurationAlert] = useState(false)
+  const [alertDuration, setAlertDuration] = useState(0)
 
   useEffect(() => {
     fetchAuthMe()
@@ -82,19 +84,42 @@ export default function MyExerciseVideoPage() {
     setVideosLoading(false)
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const checkVideoDuration = (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(video.src)
+        resolve(video.duration)
+      }
+      video.onerror = () => {
+        resolve(0)
+      }
+      video.src = URL.createObjectURL(file)
+    })
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     if (file.size > MAX_FILE_SIZE) {
-      alert(`파일 크기가 너무 큽니다.\n최대 30MB까지 업로드 가능합니다.\n선택한 파일: ${(file.size / (1024 * 1024)).toFixed(1)}MB`)
+      setAlertDuration(0)
+      setShowDurationAlert(true)
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
 
-    const allowedTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/3gpp', 'video/3gpp2']
-    if (!file.type.startsWith('video/') && !allowedTypes.includes(file.type)) {
+    if (!file.type.startsWith('video/')) {
       alert('동영상 파일만 업로드 가능합니다.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    const duration = await checkVideoDuration(file)
+    if (duration > MAX_DURATION) {
+      setAlertDuration(Math.round(duration))
+      setShowDurationAlert(true)
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
@@ -114,7 +139,6 @@ export default function MyExerciseVideoPage() {
     setUploadProgress('업로드 준비 중...')
 
     try {
-      // 1. 클라이언트에서 Supabase Storage 직접 업로드
       const ext = selectedFile.name.split('.').pop() || 'mp4'
       const timestamp = Date.now()
       const storagePath = `${user.id}/${timestamp}.${ext}`
@@ -122,7 +146,7 @@ export default function MyExerciseVideoPage() {
       setUploadProgress('영상 업로드 중...')
 
       const { error: uploadError } = await supabase.storage
-        .from('user-exercise-videos')
+        .from(BUCKET_NAME)
         .upload(storagePath, selectedFile, {
           contentType: selectedFile.type,
           upsert: false,
@@ -136,7 +160,6 @@ export default function MyExerciseVideoPage() {
         return
       }
 
-      // 2. API로 DB 레코드 생성
       setUploadProgress('저장 중...')
 
       const res = await fetch('/api/exercise-video', {
@@ -230,7 +253,6 @@ export default function MyExerciseVideoPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
-      {/* 헤더 */}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -246,6 +268,19 @@ export default function MyExerciseVideoPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-4 space-y-4">
+        {/* ⚠️ 촬영 가이드 — 최상단 눈에 띄게 */}
+        <div className="rounded-xl p-4 text-white" style={{ background: 'linear-gradient(135deg, #DC2626, #F97316)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+              <span className="text-2xl">⏱️</span>
+            </div>
+            <div>
+              <p className="font-bold text-base">15초 이내 영상만 업로드 가능</p>
+              <p className="text-white/80 text-xs mt-0.5">1세트 운동을 15초 이내로 촬영해주세요 (최대 30MB)</p>
+            </div>
+          </div>
+        </div>
+
         {/* 업로드 버튼 */}
         <div className="grid grid-cols-2 gap-3">
           <button
@@ -285,7 +320,6 @@ export default function MyExerciseVideoPage() {
           </button>
         </div>
 
-        {/* 숨겨진 파일 입력 */}
         <input
           ref={fileInputRef}
           type="file"
@@ -294,14 +328,13 @@ export default function MyExerciseVideoPage() {
           className="hidden"
         />
 
-        {/* 안내 */}
+        {/* 촬영 팁 */}
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
           <p className="text-xs text-blue-800 font-medium mb-1">💡 촬영 팁</p>
           <div className="text-[11px] text-blue-600 space-y-0.5">
             <p>• 전신이 보이도록 1~2m 거리에서 촬영하세요</p>
             <p>• 밝은 곳에서 촬영하면 트레이너가 자세를 더 잘 볼 수 있어요</p>
-            <p>• 1세트 전체를 촬영하는 것을 추천합니다 (10~15초)</p>
-            <p>• 최대 30MB까지 업로드 가능합니다</p>
+            <p>• 1세트 전체를 15초 이내로 촬영해주세요</p>
           </div>
         </div>
 
@@ -360,7 +393,6 @@ export default function MyExerciseVideoPage() {
                       </div>
                     </div>
 
-                    {/* 트레이너 피드백 */}
                     {video.trainer_feedback && (
                       <div className="mt-2 bg-emerald-50 border border-emerald-100 rounded-lg p-3">
                         <div className="flex items-center gap-1.5 mb-1">
@@ -390,6 +422,41 @@ export default function MyExerciseVideoPage() {
         </div>
       </main>
 
+      {/* 영상 길이/용량 초과 안내 모달 */}
+      {showDurationAlert && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 text-center">
+            <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <span className="text-3xl">⏱️</span>
+            </div>
+            <h3 className="font-bold text-gray-900 text-lg mb-2">
+              {alertDuration > 0 ? '영상이 너무 길어요!' : '파일이 너무 커요!'}
+            </h3>
+            <p className="text-sm text-gray-500 mb-1">
+              {alertDuration > 0
+                ? `선택한 영상: ${alertDuration}초`
+                : '선택한 파일이 30MB를 초과합니다.'
+              }
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              <span className="font-bold text-orange-600">15초 이내</span>로 다시 촬영해주세요.
+            </p>
+            <div className="bg-orange-50 rounded-xl p-3 mb-4 text-left">
+              <p className="text-xs text-orange-700">
+                💡 트레이너가 자세를 확인하기에 10~15초면 충분해요. 1세트 운동을 짧게 촬영해보세요!
+              </p>
+            </div>
+            <button
+              onClick={() => setShowDurationAlert(false)}
+              className="w-full py-3 rounded-xl font-bold text-sm text-white"
+              style={{ background: 'linear-gradient(135deg, #EA580C, #F97316)' }}
+            >
+              확인, 다시 촬영할게요
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 업로드 모달 */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
@@ -403,7 +470,6 @@ export default function MyExerciseVideoPage() {
                 >×</button>
               </div>
 
-              {/* 미리보기 */}
               {previewUrl && (
                 <div className="rounded-xl overflow-hidden bg-black">
                   <video
@@ -418,9 +484,6 @@ export default function MyExerciseVideoPage() {
               {selectedFile && (
                 <p className="text-xs text-gray-400">
                   {selectedFile.name} · {formatFileSize(selectedFile.size)}
-                  {selectedFile.size > 20 * 1024 * 1024 && (
-                    <span className="text-orange-500 ml-1">(대용량)</span>
-                  )}
                 </p>
               )}
 
