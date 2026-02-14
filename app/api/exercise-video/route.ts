@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const patientId = searchParams.get('patient_id')
 
-  // 트레이너/관리자는 patient_id로 조회 가능
   let targetUserId = user.id
   if (patientId && (user.role === 'trainer' || user.role === 'admin')) {
     targetUserId = patientId
@@ -40,12 +39,11 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // 각 영상에 signed URL 생성
   const videosWithUrls = await Promise.all(
     (data || []).map(async (video) => {
       const { data: urlData } = await supabaseAdmin.storage
         .from('user-exercise-videos')
-        .createSignedUrl(video.storage_path, 3600) // 1시간 유효
+        .createSignedUrl(video.storage_path, 3600)
 
       return {
         ...video,
@@ -57,70 +55,33 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ videos: videosWithUrls })
 }
 
-// POST: 영상 업로드
+// POST: DB 레코드 생성 (클라이언트에서 Storage 업로드 완료 후 호출)
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  try {
-    const formData = await req.formData()
-    const file = formData.get('video') as File
-    const title = (formData.get('title') as string) || '운동 영상'
-    const description = (formData.get('description') as string) || ''
+  const { title, description, storage_path, file_size_bytes } = await req.json()
 
-    if (!file) return NextResponse.json({ error: 'No video file' }, { status: 400 })
-
-    // 파일 크기 제한 (100MB)
-    if (file.size > 100 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File too large (max 100MB)' }, { status: 400 })
-    }
-
-    // 허용 타입
-    const allowedTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo']
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
-    }
-
-    const ext = file.name.split('.').pop() || 'mp4'
-    const timestamp = Date.now()
-    const storagePath = `${user.id}/${timestamp}.${ext}`
-
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from('user-exercise-videos')
-      .upload(storagePath, buffer, {
-        contentType: file.type,
-        upsert: false,
-      })
-
-    if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 500 })
-    }
-
-    // DB 레코드 생성
-    const { data: video, error: dbError } = await supabaseAdmin
-      .from('user_exercise_videos')
-      .insert({
-        user_id: user.id,
-        title,
-        description,
-        storage_path: storagePath,
-        file_size_bytes: file.size,
-        status: 'uploaded',
-      })
-      .select()
-      .single()
-
-    if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, video })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  if (!storage_path) {
+    return NextResponse.json({ error: 'Missing storage_path' }, { status: 400 })
   }
+
+  const { data: video, error } = await supabaseAdmin
+    .from('user_exercise_videos')
+    .insert({
+      user_id: user.id,
+      title: title || '운동 영상',
+      description: description || null,
+      storage_path,
+      file_size_bytes: file_size_bytes || null,
+      status: 'uploaded',
+    })
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ success: true, video })
 }
 
 // PATCH: 트레이너 피드백 작성
@@ -162,7 +123,6 @@ export async function DELETE(req: NextRequest) {
   const videoId = searchParams.get('id')
   if (!videoId) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
-  // 본인 영상만 삭제 가능
   const { data: video } = await supabaseAdmin
     .from('user_exercise_videos')
     .select('storage_path, user_id')
@@ -173,12 +133,10 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Not found or forbidden' }, { status: 404 })
   }
 
-  // Storage 삭제
   await supabaseAdmin.storage
     .from('user-exercise-videos')
     .remove([video.storage_path])
 
-  // DB 삭제
   await supabaseAdmin
     .from('user_exercise_videos')
     .delete()
