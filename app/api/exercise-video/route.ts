@@ -57,33 +57,66 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ videos: videosWithUrls })
 }
 
-// POST: DB 레코드 생성 (클라이언트에서 Storage 업로드 완료 후 호출)
+// POST: presigned URL 발급 또는 DB 레코드 생성
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { title, description, storage_path, file_size_bytes } = await req.json()
+  const body = await req.json()
 
-  if (!storage_path) {
-    return NextResponse.json({ error: 'Missing storage_path' }, { status: 400 })
+  // Step 1: presigned URL 발급 요청
+  if (body.action === 'get_upload_url') {
+    const ext = body.file_ext || 'mp4'
+    const contentType = body.content_type || 'video/mp4'
+    const timestamp = Date.now()
+    const storagePath = `${user.id}/${timestamp}.${ext}`
+
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET_NAME)
+      .createSignedUploadUrl(storagePath)
+
+    if (error) {
+      console.error('Presigned URL error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      upload_url: data.signedUrl,
+      storage_path: storagePath,
+      token: data.token,
+    })
   }
 
-  const { data: video, error } = await supabaseAdmin
-    .from('user_exercise_videos')
-    .insert({
-      user_id: user.id,
-      title: title || '운동 영상',
-      description: description || null,
-      storage_path,
-      file_size_bytes: file_size_bytes || null,
-      status: 'uploaded',
-    })
-    .select()
-    .single()
+  // Step 2: DB 레코드 생성 (업로드 완료 후)
+  if (body.action === 'save_record') {
+    const { title, description, storage_path, file_size_bytes } = body
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!storage_path) {
+      return NextResponse.json({ error: 'Missing storage_path' }, { status: 400 })
+    }
 
-  return NextResponse.json({ success: true, video })
+    const { data: video, error } = await supabaseAdmin
+      .from('user_exercise_videos')
+      .insert({
+        user_id: user.id,
+        title: title || '운동 영상',
+        description: description || null,
+        storage_path,
+        file_size_bytes: file_size_bytes || null,
+        status: 'uploaded',
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('DB insert error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, video })
+  }
+
+  return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 }
 
 // PATCH: 트레이너 피드백 작성
