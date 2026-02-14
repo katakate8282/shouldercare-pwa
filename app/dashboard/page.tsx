@@ -1001,11 +1001,30 @@ export default function DashboardPage() {
               <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg">담당: {hospitalInfo.trainer_name}</span>
             )}
           </div>
-        )}        {/* ── Stats + Rank + Report Card ── */}
+        )}
+
+        {/* ── 1) 최상단: 순위 + 통계 + 주간리포트 ── */}
         <div className="rounded-2xl overflow-hidden">
-          {/* 상단: 통계 */}
-          <div className="p-3.5 pb-3 text-white" style={{ background: 'linear-gradient(135deg, #0369A1 0%, #0284C7 40%, #38BDF8 100%)' }}>
-            {/* 운동/달성률/통증 3열 */}
+          {/* 순위 히어로 */}
+          <div className="p-4 pb-3 text-white" style={{ background: 'linear-gradient(135deg, #0369A1 0%, #0284C7 40%, #38BDF8 100%)' }}>
+            {/* 순위 */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-3xl">{myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏅'}</span>
+                <div>
+                  <p className="text-lg font-extrabold">
+                    이번 주 {myRank > 0 ? <span style={{ color: '#FDE68A' }}>{myRank}위</span> : <span className="text-white/70">—</span>}
+                  </p>
+                  <p className="text-[10px] opacity-70">{totalRankers > 0 ? `전체 ${totalRankers}명 중` : '순위 집계중'}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-extrabold" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>{weekExercises}<span className="text-xs font-medium opacity-80">회</span></p>
+                <p className="text-[9px] opacity-70">이번 주 운동</p>
+              </div>
+            </div>
+
+            {/* 통계 3열 */}
             <div className="grid grid-cols-3 gap-2 mb-2.5">
               <div className="bg-white/[0.12] backdrop-blur-sm rounded-lg py-2 text-center">
                 <p className="text-xl font-extrabold" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>{weekExercises}<span className="text-[10px] font-medium opacity-80">회</span></p>
@@ -1033,121 +1052,98 @@ export default function DashboardPage() {
 
             {/* 프로그레스 바 */}
             {weekPrescribedCount > 0 && (
-              <div className="flex items-center gap-2 mb-2.5">
+              <div className="flex items-center gap-2">
                 <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
                   <div className="h-full bg-white/80 rounded-full transition-all" style={{ width: `${Math.min(achievementRate, 100)}%` }} />
                 </div>
                 <span className="text-[9px] opacity-70 whitespace-nowrap">{weekExercises}/{weekPrescribedCount}회</span>
               </div>
             )}
-
-            {/* 순위 인라인 */}
-            {myRank > 0 && (
-              <div className="bg-white/[0.12] backdrop-blur-sm rounded-lg px-3 py-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏅'}</span>
-                  <div>
-                    <p className="text-[13px] font-bold">이번 주 <span style={{ color: '#FDE68A' }}>{myRank}위</span></p>
-                    <p className="text-[9px] opacity-70">전체 {totalRankers}명 중</p>
-                  </div>
-                </div>
-                <p className="text-sm font-extrabold" style={{ color: '#FDE68A' }}>{weekExercises}회</p>
-              </div>
-            )}
           </div>
 
-          {/* 하단: 리포트 버튼 */}
-          <button
-            onClick={() => router.push('/my-stats')}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 text-white hover:brightness-110 transition"
-            style={{ background: '#0369A1' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            <span className="text-xs font-bold">내 기록 · 리포트 · 순위 상세보기</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
+          {/* 주간 리포트 + 상세보기 버튼 */}
+          <div className="flex">
+            <button
+              onClick={() => router.push('/weekly-report')}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-white hover:brightness-110 transition"
+              style={{ background: '#0369A1' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span className="text-xs font-bold">주간 리포트</span>
+            </button>
+            <div className="w-px bg-white/20" />
+            <button
+              onClick={() => router.push('/my-stats')}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-white hover:brightness-110 transition"
+              style={{ background: '#0369A1' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              <span className="text-xs font-bold">기록 · 순위 상세</span>
+            </button>
+          </div>
         </div>
 
-
-        {/* 주간 리포트 */}
-        <button onClick={() => router.push("/weekly-report")} className="w-full bg-white rounded-xl p-4 flex items-center gap-3 shadow-sm border border-gray-100">
-          <span className="text-2xl">📋</span>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-bold text-gray-900">주간 리포트</p>
-            <p className="text-xs text-gray-500">매주 월요일 자동 생성됩니다</p>
-          </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-        {/* ── AI 자가테스트 배너 ── */}
-        <button
-          onClick={() => router.push('/self-test')}
-          className="w-full rounded-xl p-4 text-left relative overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, #7C3AED, #A78BFA)' }}
-        >
-          <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-white/10 -mr-6 -mt-6" />
-          <div className="absolute bottom-0 right-8 w-12 h-12 rounded-full bg-white/5" />
-          <div className="relative flex items-center gap-3">
-            <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
-              <span className="text-2xl">🤖</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-white font-bold text-sm">AI 자가테스트</p>
-              <p className="text-white/70 text-xs mt-0.5">통증 설문 + ROM 측정 → 맞춤 운동 추천</p>
-            </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </div>
-        </button>
-
-        {/* ── Quick Actions (3열) ── */}
-        <div className="grid grid-cols-3 gap-2">
-          {/* 메시지 */}
+        {/* ── 2) AI 자가테스트 / AI 분석결과 (2열) ── */}
+        <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => {
-              if (!subStatus.isPremium) { setShowPremiumModal(true); return }
-              trainerId ? router.push(`/messages/${trainerId}`) : router.push('/messages')
-            }}
-            className="bg-white rounded-xl p-2.5 text-center shadow-sm hover:shadow-md transition relative"
+            onClick={() => router.push('/self-test')}
+            className="rounded-xl p-3.5 text-left relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, #7C3AED, #A78BFA)' }}
           >
-            {!subStatus.isPremium && (
-              <span className="absolute top-1.5 right-1.5 text-[10px]">🔒</span>
-            )}
-            {subStatus.isPremium && unreadCount > 0 && (
-              <span className="absolute top-1.5 right-2 w-1.5 h-1.5 bg-red-500 rounded-full" />
-            )}
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-1" style={{ backgroundColor: !subStatus.isPremium ? '#F1F5F9' : '#E0F2FE' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={!subStatus.isPremium ? '#94A3B8' : '#0284C7'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <div className="absolute top-0 right-0 w-14 h-14 rounded-full bg-white/10 -mr-4 -mt-4" />
+            <div className="relative">
+              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center mb-2">
+                <span className="text-xl">🤖</span>
+              </div>
+              <p className="text-white font-bold text-[13px]">AI 자가테스트</p>
+              <p className="text-white/60 text-[10px] mt-0.5">통증 + ROM 측정</p>
             </div>
-            <p className={`text-[11px] font-semibold ${!subStatus.isPremium ? 'text-slate-400' : 'text-slate-800'}`}>메시지</p>
-            {subStatus.isPremium && unreadCount > 0 && <p className="text-[9px] text-red-500 font-medium">{unreadCount}건</p>}
-            {!subStatus.isPremium && <p className="text-[9px] text-slate-400">프리미엄</p>}
           </button>
-
-          {/* 통증 기록 */}
-          <button
-            onClick={() => router.push('/pain')}
-            className="bg-white rounded-xl p-2.5 text-center shadow-sm hover:shadow-md transition"
-          >
-            <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center mx-auto mb-1">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
-            </div>
-            <p className="text-[11px] font-semibold text-slate-800">통증 기록</p>
-            <p className="text-[9px] text-slate-400">오늘</p>
-          </button>
-
-          {/* AI 분석 결과 */}
           <button
             onClick={() => router.push('/self-test/history')}
-            className="bg-white rounded-xl p-2.5 text-center shadow-sm hover:shadow-md transition"
+            className="rounded-xl p-3.5 text-left relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
           >
-            <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center mx-auto mb-1">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 17H7A5 5 0 017 7h2"/><path d="M15 7h2a5 5 0 010 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            <div className="absolute top-0 right-0 w-14 h-14 rounded-full bg-white/10 -mr-4 -mt-4" />
+            <div className="relative">
+              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center mb-2">
+                <span className="text-xl">📊</span>
+              </div>
+              <p className="text-white font-bold text-[13px]">AI 분석결과</p>
+              <p className="text-white/60 text-[10px] mt-0.5">진단 추정 · 추천 운동</p>
             </div>
-            <p className="text-[11px] font-semibold text-slate-800">AI 분석결과</p>
-            <p className="text-[9px] text-slate-400">최근 결과</p>
           </button>
         </div>
 
-        {/* ── 오늘의 운동 ── */}
+        {/* ── 3) 통증 기록 / 내 운동 촬영 (2열) ── */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => router.push('/pain')}
+            className="bg-white rounded-xl p-3.5 text-left shadow-sm hover:shadow-md transition flex items-center gap-3"
+          >
+            <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+            </div>
+            <div>
+              <p className="text-[13px] font-bold text-slate-800">통증 기록</p>
+              <p className="text-[10px] text-slate-400">{todayPain !== null ? `오늘 ${todayPain}/10` : '오늘 기록하기'}</p>
+            </div>
+          </button>
+          <button
+            onClick={() => router.push('/my-exercise-video')}
+            className="bg-white rounded-xl p-3.5 text-left shadow-sm hover:shadow-md transition flex items-center gap-3"
+          >
+            <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            </div>
+            <div>
+              <p className="text-[13px] font-bold text-slate-800">내 운동 촬영</p>
+              <p className="text-[10px] text-slate-400">영상으로 피드백 받기</p>
+            </div>
+          </button>
+        </div>
+
+        {/* ── 4) 오늘의 운동 ── */}
         <div className="bg-white rounded-xl shadow-sm">
           <div className="px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between">
             <p className="text-sm font-bold text-slate-800">오늘의 운동</p>
@@ -1211,24 +1207,31 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Bottom Quick Links ── */}
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => router.push('/exercises')}
-            className="rounded-xl p-3 text-left text-white"
-            style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
-          >
-            <p className="text-xs font-bold">운동 라이브러리</p>
-            <p className="text-[10px] text-white/70 mt-0.5">54개 운동</p>
-          </button>
-          <button
-            onClick={() => router.push('/my-stats')}
-            className="bg-white rounded-xl p-3 text-left shadow-sm hover:shadow-md transition"
-          >
-            <p className="text-xs font-bold text-slate-800">내 기록 상세</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">리포트 · 순위 · XP</p>
-          </button>
-        </div>
+        {/* ── 메시지 (프리미엄) ── */}
+        <button
+          onClick={() => {
+            if (!subStatus.isPremium) { setShowPremiumModal(true); return }
+            trainerId ? router.push(`/messages/${trainerId}`) : router.push('/messages')
+          }}
+          className="w-full bg-white rounded-xl p-3.5 shadow-sm hover:shadow-md transition flex items-center gap-3"
+        >
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: !subStatus.isPremium ? '#F1F5F9' : '#E0F2FE' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={!subStatus.isPremium ? '#94A3B8' : '#0284C7'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <div className="flex-1">
+            <p className={`text-[13px] font-bold ${!subStatus.isPremium ? 'text-slate-400' : 'text-slate-800'}`}>
+              트레이너 메시지
+              {!subStatus.isPremium && <span className="ml-1 text-[10px]">🔒</span>}
+            </p>
+            <p className="text-[10px] text-slate-400">
+              {!subStatus.isPremium ? '프리미엄 전용' : unreadCount > 0 ? `읽지 않은 메시지 ${unreadCount}건` : '1:1 상담'}
+            </p>
+          </div>
+          {subStatus.isPremium && unreadCount > 0 && (
+            <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount > 9 ? '9+' : unreadCount}</span>
+          )}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </main>
 
       <BottomNav role="patient" unreadCount={unreadCount} trainerId={trainerId} isPremium={subStatus.isPremium} />
