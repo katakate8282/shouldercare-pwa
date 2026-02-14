@@ -3,13 +3,11 @@
 import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import { checkSubscription } from '@/lib/subscription'
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30MB
 const MAX_DURATION = 15 // 15초
-const BUCKET_NAME = 'user-videos'
 
 interface User {
   id: string
@@ -50,7 +48,6 @@ export default function MyExerciseVideoPage() {
   const [playingVideo, setPlayingVideo] = useState<ExerciseVideo | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // 길이/용량 초과 안내 모달
   const [showDurationAlert, setShowDurationAlert] = useState(false)
   const [alertDuration, setAlertDuration] = useState(0)
 
@@ -139,44 +136,68 @@ export default function MyExerciseVideoPage() {
     setUploadProgress('업로드 준비 중...')
 
     try {
+      // Step 1: API에서 presigned upload URL 받기
       const ext = selectedFile.name.split('.').pop() || 'mp4'
-      const timestamp = Date.now()
-      const storagePath = `${user.id}/${timestamp}.${ext}`
 
-      setUploadProgress('영상 업로드 중...')
-
-      const { error: uploadError } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(storagePath, selectedFile, {
-          contentType: selectedFile.type,
-          upsert: false,
-        })
-
-      if (uploadError) {
-        console.error('Storage upload error:', uploadError)
-        setUploadProgress('')
-        alert('업로드 실패: ' + uploadError.message)
-        setUploading(false)
-        return
-      }
-
-      setUploadProgress('저장 중...')
-
-      const res = await fetch('/api/exercise-video', {
+      const urlRes = await fetch('/api/exercise-video', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'get_upload_url',
+          file_ext: ext,
+          content_type: selectedFile.type,
+        }),
+      })
+
+      const urlData = await urlRes.json()
+
+      if (!urlData.upload_url) {
+        setUploadProgress('')
+        alert('업로드 URL 발급 실패: ' + (urlData.error || '알 수 없는 오류'))
+        setUploading(false)
+        return
+      }
+
+      // Step 2: presigned URL로 직접 업로드
+      setUploadProgress('영상 업로드 중...')
+
+      const uploadRes = await fetch(urlData.upload_url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': selectedFile.type,
+        },
+        body: selectedFile,
+      })
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text()
+        console.error('Storage upload failed:', errText)
+        setUploadProgress('')
+        alert('영상 업로드 실패. 다시 시도해주세요.')
+        setUploading(false)
+        return
+      }
+
+      // Step 3: API에서 DB 레코드 생성
+      setUploadProgress('저장 중...')
+
+      const saveRes = await fetch('/api/exercise-video', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_record',
           title: title || '운동 영상',
           description: description || '',
-          storage_path: storagePath,
+          storage_path: urlData.storage_path,
           file_size_bytes: selectedFile.size,
         }),
       })
 
-      const data = await res.json()
+      const saveData = await saveRes.json()
 
-      if (data.success) {
+      if (saveData.success) {
         setUploadProgress('업로드 완료!')
         setTimeout(() => {
           setShowUploadModal(false)
@@ -185,7 +206,7 @@ export default function MyExerciseVideoPage() {
         }, 1000)
       } else {
         setUploadProgress('')
-        alert(data.error || 'DB 저장 실패')
+        alert('저장 실패: ' + (saveData.error || '알 수 없는 오류'))
       }
     } catch (err: any) {
       setUploadProgress('')
@@ -268,7 +289,7 @@ export default function MyExerciseVideoPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-4 space-y-4">
-        {/* ⚠️ 촬영 가이드 — 최상단 눈에 띄게 */}
+        {/* 촬영 가이드 — 최상단 */}
         <div className="rounded-xl p-4 text-white" style={{ background: 'linear-gradient(135deg, #DC2626, #F97316)' }}>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center shrink-0">
