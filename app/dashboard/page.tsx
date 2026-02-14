@@ -1068,6 +1068,16 @@ export default function DashboardPage() {
           </button>
         </div>
 
+
+        {/* 주간 리포트 */}
+        <button onClick={() => router.push("/weekly-report")} className="w-full bg-white rounded-xl p-4 flex items-center gap-3 shadow-sm border border-gray-100">
+          <span className="text-2xl">📋</span>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-bold text-gray-900">주간 리포트</p>
+            <p className="text-xs text-gray-500">매주 월요일 자동 생성됩니다</p>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
         {/* ── AI 자가테스트 배너 ── */}
         <button
           onClick={() => router.push('/self-test')}
