@@ -100,23 +100,58 @@ export default function MyExerciseVideoPage() {
   const handleUpload = async () => {
     if (!selectedFile) return
     setUploading(true)
-    setUploadProgress('업로드 중...')
+    setUploadProgress('업로드 준비 중...')
 
     try {
-      const formData = new FormData()
-      formData.append('video', selectedFile)
-      formData.append('title', title || '운동 영상')
-      if (description) formData.append('description', description)
-
-      const res = await fetch('/api/exercise-video', {
+      // 1단계: presigned URL 발급
+      const ext = selectedFile.name.split('.').pop() || 'mp4'
+      const urlRes = await fetch('/api/exercise-video', {
         method: 'POST',
         credentials: 'include',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_upload_url', file_ext: ext }),
       })
 
-      const data = await res.json()
+      if (!urlRes.ok) {
+        const errText = await urlRes.text()
+        throw new Error('URL 발급 실패: ' + errText)
+      }
 
-      if (data.success) {
+      const urlData = await urlRes.json()
+      if (!urlData.upload_url) {
+        throw new Error('업로드 URL을 받지 못했습니다')
+      }
+
+      // 2단계: Supabase Storage에 직접 업로드
+      setUploadProgress('영상 업로드 중...')
+      const uploadRes = await fetch(urlData.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': selectedFile.type || 'video/mp4' },
+        body: selectedFile,
+      })
+
+      if (!uploadRes.ok) {
+        throw new Error('스토리지 업로드 실패: ' + uploadRes.status)
+      }
+
+      // 3단계: DB에 레코드 저장
+      setUploadProgress('저장 중...')
+      const saveRes = await fetch('/api/exercise-video', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_record',
+          title: title || '운동 영상',
+          description: description || null,
+          storage_path: urlData.storage_path,
+          file_size_bytes: selectedFile.size,
+        }),
+      })
+
+      const saveData = await saveRes.json()
+
+      if (saveData.success) {
         setUploadProgress('업로드 완료!')
         setTimeout(() => {
           setShowUploadModal(false)
@@ -125,11 +160,11 @@ export default function MyExerciseVideoPage() {
         }, 1000)
       } else {
         setUploadProgress('')
-        alert(data.error || '업로드 실패')
+        alert(saveData.error || '저장 실패')
       }
     } catch (err) {
       setUploadProgress('')
-        alert('업로드 오류: ' + (err instanceof Error ? err.message : JSON.stringify(err)))
+      alert('업로드 오류: ' + (err instanceof Error ? err.message : JSON.stringify(err)))
     }
     setUploading(false)
   }
