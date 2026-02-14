@@ -588,6 +588,7 @@ export default function HospitalPage() {
                     alert("청구서가 저장되었습니다!");
                   } catch (e: any) { alert("저장 실패: " + e.message); }
                 }} style={{ marginTop: 20, width: "100%", padding: "14px", background: "#667eea", color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>📄 청구서 저장</button>
+                <button onClick={() => window.open("/api/report-pdf?type=invoice&id=" + hospital.id, "_blank")} style={{ marginTop: 8, width: "100%", padding: "14px", background: "white", color: "#667eea", border: "1px solid #667eea", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>🖨️ 청구서 인쇄/PDF</button>
               </div>
             </div>
           )
