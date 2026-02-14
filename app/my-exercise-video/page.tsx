@@ -2,7 +2,7 @@
 
 import { fetchAuthMe } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import BottomNav from '@/components/BottomNav'
 import { checkSubscription } from '@/lib/subscription'
 
@@ -81,6 +81,9 @@ export default function MyExerciseVideoPage() {
   const [prescribedExercises, setPrescribedExercises] = useState<PrescribedExercise[]>([])
   const [remainingAnalyses, setRemainingAnalyses] = useState<number>(5)
 
+  // 오늘 업로드 카운트 (서버 기준, 삭제해도 유지)
+  const [todayUploadCount, setTodayUploadCount] = useState<number>(0)
+
   // 업로드 관련
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -103,6 +106,10 @@ export default function MyExerciseVideoPage() {
   // AI 분석 결과 펼침 상태
   const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null)
 
+  // AI 분석 진행 상태
+  const [analyzingVideoId, setAnalyzingVideoId] = useState<string | null>(null)
+  const [analysisProgress, setAnalysisProgress] = useState('')
+
   useEffect(() => {
     fetchAuthMe()
       .then(res => {
@@ -116,6 +123,7 @@ export default function MyExerciseVideoPage() {
           fetchExercises()
           fetchPrescribedExercises()
           fetchRemainingAnalyses()
+          fetchTodayUploadCount()
         } else {
           router.push('/login')
         }
@@ -166,9 +174,14 @@ export default function MyExerciseVideoPage() {
     }
   }
 
-  const getTodayUploadCount = () => {
-    const today = new Date().toLocaleDateString('ko-KR')
-    return videos.filter(v => new Date(v.created_at).toLocaleDateString('ko-KR') === today).length
+  const fetchTodayUploadCount = async () => {
+    try {
+      const res = await fetch('/api/exercise-video?action=get_today_upload_count', { credentials: 'include' })
+      const data = await res.json()
+      if (data.today_count !== undefined) setTodayUploadCount(data.today_count)
+    } catch (err) {
+      console.error('Failed to fetch today upload count:', err)
+    }
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,7 +194,7 @@ export default function MyExerciseVideoPage() {
       return
     }
 
-    if (getTodayUploadCount() >= 5) {
+    if (todayUploadCount >= 5) {
       alert('하루 최대 5개까지 업로드할 수 있습니다.\n내일 다시 시도해주세요.')
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
@@ -276,6 +289,8 @@ export default function MyExerciseVideoPage() {
 
       if (saveData.success) {
         setUploadProgress('업로드 완료!')
+        // 서버 카운트 갱신
+        fetchTodayUploadCount()
         setTimeout(() => {
           setShowUploadModal(false)
           resetUploadForm()
@@ -302,9 +317,62 @@ export default function MyExerciseVideoPage() {
       if (data.success) {
         setDeletingId(null)
         fetchVideos()
+        // soft delete이므로 카운트는 변하지 않음 - fetchTodayUploadCount 불필요
       }
     } catch (err) {
       alert('삭제 실패')
+    }
+  }
+
+  // AI 자세 분석 실행
+  const handleAiAnalysis = async (video: ExerciseVideo) => {
+    if (!video.video_url || !video.exercise_id) return
+    if (remainingAnalyses <= 0) {
+      alert('이번 주 AI 분석 횟수를 모두 사용했어요.\n매주 월요일에 초기화됩니다.')
+      return
+    }
+
+    setAnalyzingVideoId(video.id)
+    setAnalysisProgress('AI 분석 준비 중...')
+
+    try {
+      // 1) MediaPipe 모듈 동적 로드
+      setAnalysisProgress('자세 인식 모델 로딩 중...')
+      const { runFullAnalysis } = await import('@/lib/mediapipe-analyzer')
+
+      // 2) 전체 파이프라인 실행 (프레임 추출 → MediaPipe → 각도 계산 → API 호출)
+      setAnalysisProgress('영상에서 자세를 분석하고 있어요...')
+      const result = await runFullAnalysis(video.video_url, video.id, video.exercise_id)
+
+      if (result.success) {
+        setAnalysisProgress('분석 완료!')
+        // 영상 목록 + 잔여 횟수 갱신
+        await fetchVideos()
+        await fetchRemainingAnalyses()
+        // 결과 아코디언 자동 펼침
+        setExpandedAnalysis(video.id)
+
+        setTimeout(() => {
+          setAnalyzingVideoId(null)
+          setAnalysisProgress('')
+        }, 1500)
+      } else {
+        throw new Error(result.error || '분석에 실패했습니다.')
+      }
+    } catch (err) {
+      console.error('AI analysis error:', err)
+      const errorMsg = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
+
+      if (errorMsg.includes('WEEKLY_LIMIT_EXCEEDED')) {
+        alert('이번 주 AI 분석 횟수를 모두 사용했어요.\n매주 월요일에 초기화됩니다.')
+      } else if (errorMsg.includes('NOT_SUPPORTED')) {
+        alert('이 운동은 AI 분석을 지원하지 않습니다.')
+      } else {
+        alert('AI 분석 중 오류가 발생했어요.\n잠시 후 다시 시도해주세요.\n\n' + errorMsg)
+      }
+
+      setAnalyzingVideoId(null)
+      setAnalysisProgress('')
     }
   }
 
@@ -384,7 +452,6 @@ export default function MyExerciseVideoPage() {
   if (!user) return null
 
   const subStatus = checkSubscription(user as any)
-  const todayCount = getTodayUploadCount()
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
@@ -409,7 +476,7 @@ export default function MyExerciseVideoPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-sm">📹</span>
-              <span className="text-xs text-gray-600">오늘 업로드: <strong className="text-gray-900">{todayCount}/5개</strong></span>
+              <span className="text-xs text-gray-600">오늘 업로드: <strong className="text-gray-900">{todayUploadCount}/5개</strong></span>
             </div>
             <span className="text-[10px] text-gray-400">15초 / 30MB 이하</span>
           </div>
@@ -426,7 +493,7 @@ export default function MyExerciseVideoPage() {
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => {
-              if (todayCount >= 5) {
+              if (todayUploadCount >= 5) {
                 alert('하루 최대 5개까지 업로드할 수 있습니다.\n내일 다시 시도해주세요.')
                 return
               }
@@ -437,7 +504,7 @@ export default function MyExerciseVideoPage() {
               }
             }}
             className="rounded-xl p-4 text-center text-white"
-            style={{ background: todayCount >= 5 ? '#9CA3AF' : 'linear-gradient(135deg, #059669, #10B981)' }}
+            style={{ background: todayUploadCount >= 5 ? '#9CA3AF' : 'linear-gradient(135deg, #059669, #10B981)' }}
           >
             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
@@ -448,7 +515,7 @@ export default function MyExerciseVideoPage() {
 
           <button
             onClick={() => {
-              if (todayCount >= 5) {
+              if (todayUploadCount >= 5) {
                 alert('하루 최대 5개까지 업로드할 수 있습니다.\n내일 다시 시도해주세요.')
                 return
               }
@@ -459,7 +526,7 @@ export default function MyExerciseVideoPage() {
               }
             }}
             className="rounded-xl p-4 text-center text-white"
-            style={{ background: todayCount >= 5 ? '#9CA3AF' : 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
+            style={{ background: todayUploadCount >= 5 ? '#9CA3AF' : 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
           >
             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -481,6 +548,7 @@ export default function MyExerciseVideoPage() {
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
           <p className="text-xs text-blue-800 font-medium mb-1">💡 촬영 팁</p>
           <div className="text-[11px] text-blue-600 space-y-0.5">
+            <p className="text-red-600 font-bold">⚠️ 영상 1개는 15초 미만, 30MB 미만만 업로드 가능합니다</p>
             <p>• 전신이 보이도록 1~2m 거리에서 촬영하세요</p>
             <p>• 밝은 곳에서 촬영하면 AI가 자세를 더 정확히 분석해요</p>
             <p>• 몸에 밀착된 옷 착용을 추천합니다</p>
@@ -597,6 +665,26 @@ export default function MyExerciseVideoPage() {
                       </div>
                     )}
 
+                    {/* AI 분석 중 로딩 UI */}
+                    {analyzingVideoId === video.id && (
+                      <div className="mt-2 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <div className="w-10 h-10 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+                            <span className="absolute inset-0 flex items-center justify-center text-sm">🤖</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-purple-800">AI가 자세를 분석하고 있어요</p>
+                            <p className="text-[11px] text-purple-600 mt-0.5">{analysisProgress}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 bg-purple-100 rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-purple-500 h-full rounded-full animate-pulse" style={{ width: '60%' }} />
+                        </div>
+                        <p className="text-[10px] text-purple-400 mt-2">보통 10~20초 정도 소요됩니다</p>
+                      </div>
+                    )}
+
                     {/* AI 분석 미지원 운동 안내 */}
                     {video.exercises && !video.exercises.ai_analysis_enabled && !video.trainer_feedback && (
                       <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
@@ -611,12 +699,21 @@ export default function MyExerciseVideoPage() {
                       </div>
                     )}
 
-                    {/* AI 분석 가능 + 아직 미분석 */}
-                    {video.exercises?.ai_analysis_enabled && !video.ai_analysis && !video.trainer_feedback && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="text-[11px] text-purple-500">🤖 AI 자세 분석 가능</span>
-                        <span className="text-[11px] text-gray-400">·</span>
-                        <span className="text-[11px] text-yellow-600">트레이너 피드백 대기 중</span>
+                    {/* AI 분석 가능 + 아직 미분석 → AI 분석 버튼 */}
+                    {video.exercises?.ai_analysis_enabled && !video.ai_analysis && analyzingVideoId !== video.id && (
+                      <div className="mt-2 space-y-2">
+                        <button
+                          onClick={() => handleAiAnalysis(video)}
+                          disabled={remainingAnalyses <= 0 || !video.video_url}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-xs font-bold transition disabled:opacity-50"
+                          style={{ background: remainingAnalyses <= 0 ? '#9CA3AF' : 'linear-gradient(135deg, #7C3AED, #A855F7)' }}
+                        >
+                          <span>🤖</span>
+                          {remainingAnalyses <= 0 ? 'AI 분석 횟수 소진 (월요일 초기화)' : 'AI 자세 분석하기'}
+                        </button>
+                        {!video.trainer_feedback && (
+                          <p className="text-[11px] text-yellow-600 text-center">트레이너 피드백도 대기 중이에요</p>
+                        )}
                       </div>
                     )}
 
