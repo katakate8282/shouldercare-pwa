@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { requestNotificationPermission, onForegroundMessage } from '@/lib/firebase'
+import BottomNav from '@/components/BottomNav'
 
 interface User {
   id: string
@@ -80,10 +81,7 @@ export default function MessagePage() {
   // 포그라운드 메시지 수신 시 토스트 표시
   useEffect(() => {
     onForegroundMessage((payload) => {
-      // 현재 대화 상대의 메시지는 이미 Realtime으로 처리되므로 무시
-      // 다른 사람의 메시지일 때만 알림
       if (payload.data?.senderId !== otherUserId) {
-        // 간단한 토스트 알림
         if (Notification.permission === 'granted') {
           new Notification(payload.notification?.title || '어깨케어', {
             body: payload.notification?.body || '새 메시지',
@@ -171,7 +169,6 @@ export default function MessagePage() {
 
   const sendPushNotification = async (receiverId: string, content: string) => {
     try {
-      // 상대방의 FCM 토큰 조회
       const { data: tokens } = await supabase
         .from('fcm_tokens')
         .select('token')
@@ -179,7 +176,6 @@ export default function MessagePage() {
 
       if (!tokens || tokens.length === 0) return
 
-      // 각 토큰에 푸시 발송
       for (const { token } of tokens) {
         await fetch('/api/push/send', {
           method: 'POST',
@@ -217,7 +213,6 @@ export default function MessagePage() {
       console.error('Send error:', error)
       setNewMessage(content)
     } else {
-      // 푸시 알림 발송
       sendPushNotification(otherUserId, content)
     }
 
@@ -268,7 +263,7 @@ export default function MessagePage() {
   const isTrainer = user.role === 'trainer'
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gray-100 flex flex-col pb-16">
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
           <button
@@ -319,7 +314,6 @@ export default function MessagePage() {
                   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-1`}>
                     <div className={`flex items-end gap-1.5 max-w-[75%] ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
                       <div>
-                        {/* 상대방 메시지일 때 이름 표시 */}
                         {!isMine && (
                           <p className="text-xs text-gray-500 mb-1 ml-1">{otherUser?.name || '상대방'}</p>
                         )}
@@ -351,7 +345,8 @@ export default function MessagePage() {
         )}
       </div>
 
-      <div className="bg-white border-t sticky bottom-0">
+      {/* 메시지 입력 - BottomNav 위에 위치 */}
+      <div className="bg-white border-t sticky bottom-16 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-2">
           <input
             ref={inputRef}
@@ -371,6 +366,8 @@ export default function MessagePage() {
           </button>
         </div>
       </div>
+
+      <BottomNav role={user.role || 'patient'} />
     </div>
   )
 }
