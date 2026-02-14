@@ -14,6 +14,23 @@ interface User {
   subscription_expires_at?: string | null
 }
 
+interface Exercise {
+  id: number
+  name_ko: string
+  category: string
+  ai_analysis_enabled: boolean
+}
+
+interface AiAnalysis {
+  id: string
+  ai_feedback: string | null
+  analysis_metrics: any
+  comparison_data: any
+  analysis_status: string
+  failure_reason: string | null
+  created_at: string
+}
+
 interface ExerciseVideo {
   id: string
   title: string
@@ -23,7 +40,33 @@ interface ExerciseVideo {
   trainer_feedback: string | null
   feedback_at: string | null
   file_size_bytes: number | null
+  exercise_id: number | null
+  ai_analysis_id: string | null
   created_at: string
+  exercises: {
+    id: number
+    name_ko: string
+    category: string
+    ai_analysis_enabled: boolean
+  } | null
+  ai_analysis: AiAnalysis | null
+}
+
+interface PrescribedExercise {
+  exercise_id: number
+  exercise_name: string
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  '견갑골_안정화': '견갑골 안정화',
+  '어깨_강화': '어깨 강화',
+  '회전근개_강화': '회전근개 강화',
+  '흉추_가동성': '흉추 가동성',
+  '관절_가동성': '관절 가동성',
+  '코어_통합': '코어 통합',
+  '등척성_운동': '등척성 운동',
+  '기능적_운동': '기능적 운동',
+  '고유수용감각': '고유수용감각',
 }
 
 export default function MyExerciseVideoPage() {
@@ -33,6 +76,11 @@ export default function MyExerciseVideoPage() {
   const [videos, setVideos] = useState<ExerciseVideo[]>([])
   const [videosLoading, setVideosLoading] = useState(false)
 
+  // 운동 목록
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [prescribedExercises, setPrescribedExercises] = useState<PrescribedExercise[]>([])
+  const [remainingAnalyses, setRemainingAnalyses] = useState<number>(5)
+
   // 업로드 관련
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -41,6 +89,9 @@ export default function MyExerciseVideoPage() {
   const [description, setDescription] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(null)
+  const [exerciseTab, setExerciseTab] = useState<'prescribed' | 'all'>('prescribed')
+  const [exerciseSearch, setExerciseSearch] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 영상 재생 모달
@@ -48,6 +99,9 @@ export default function MyExerciseVideoPage() {
 
   // 삭제 확인
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // AI 분석 결과 펼침 상태
+  const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAuthMe()
@@ -59,6 +113,9 @@ export default function MyExerciseVideoPage() {
         if (data.user) {
           setUser(data.user)
           fetchVideos()
+          fetchExercises()
+          fetchPrescribedExercises()
+          fetchRemainingAnalyses()
         } else {
           router.push('/login')
         }
@@ -79,6 +136,36 @@ export default function MyExerciseVideoPage() {
     setVideosLoading(false)
   }
 
+  const fetchExercises = async () => {
+    try {
+      const res = await fetch('/api/exercise-video?action=get_exercises', { credentials: 'include' })
+      const data = await res.json()
+      if (data.exercises) setExercises(data.exercises)
+    } catch (err) {
+      console.error('Failed to fetch exercises:', err)
+    }
+  }
+
+  const fetchPrescribedExercises = async () => {
+    try {
+      const res = await fetch('/api/exercise-video?action=get_prescribed_exercises', { credentials: 'include' })
+      const data = await res.json()
+      if (data.prescriptions) setPrescribedExercises(data.prescriptions)
+    } catch (err) {
+      console.error('Failed to fetch prescribed exercises:', err)
+    }
+  }
+
+  const fetchRemainingAnalyses = async () => {
+    try {
+      const res = await fetch('/api/exercise-video?action=get_remaining_analyses', { credentials: 'include' })
+      const data = await res.json()
+      if (data.remaining !== undefined) setRemainingAnalyses(data.remaining)
+    } catch (err) {
+      console.error('Failed to fetch remaining analyses:', err)
+    }
+  }
+
   const getTodayUploadCount = () => {
     const today = new Date().toLocaleDateString('ko-KR')
     return videos.filter(v => new Date(v.created_at).toLocaleDateString('ko-KR') === today).length
@@ -88,21 +175,18 @@ export default function MyExerciseVideoPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // 30MB 제한
     if (file.size > 30 * 1024 * 1024) {
       alert('파일 크기는 30MB 이하만 가능합니다.')
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
 
-    // 하루 5개 제한
     if (getTodayUploadCount() >= 5) {
       alert('하루 최대 5개까지 업로드할 수 있습니다.\n내일 다시 시도해주세요.')
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
 
-    // 15초 체크 (비디오 메타데이터 확인)
     const videoEl = document.createElement('video')
     videoEl.preload = 'metadata'
     videoEl.onloadedmetadata = () => {
@@ -112,7 +196,6 @@ export default function MyExerciseVideoPage() {
         if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
-      // 통과 시 업로드 모달 열기
       setSelectedFile(file)
       setPreviewUrl(URL.createObjectURL(file))
       if (!title) {
@@ -122,7 +205,6 @@ export default function MyExerciseVideoPage() {
       setShowUploadModal(true)
     }
     videoEl.onerror = () => {
-      // 메타데이터 로드 실패 시 그냥 진행
       setSelectedFile(file)
       setPreviewUrl(URL.createObjectURL(file))
       if (!title) {
@@ -136,11 +218,15 @@ export default function MyExerciseVideoPage() {
 
   const handleUpload = async () => {
     if (!selectedFile) return
+    if (!selectedExerciseId) {
+      alert('어떤 운동을 촬영했는지 선택해주세요.')
+      return
+    }
+
     setUploading(true)
     setUploadProgress('업로드 준비 중...')
 
     try {
-      // 1단계: presigned URL 발급
       const ext = selectedFile.name.split('.').pop() || 'mp4'
       const urlRes = await fetch('/api/exercise-video', {
         method: 'POST',
@@ -159,7 +245,6 @@ export default function MyExerciseVideoPage() {
         throw new Error('업로드 URL을 받지 못했습니다')
       }
 
-      // 2단계: Supabase Storage에 직접 업로드
       setUploadProgress('영상 업로드 중...')
       const uploadRes = await fetch(urlData.upload_url, {
         method: 'PUT',
@@ -171,18 +256,19 @@ export default function MyExerciseVideoPage() {
         throw new Error('스토리지 업로드 실패: ' + uploadRes.status)
       }
 
-      // 3단계: DB에 레코드 저장
       setUploadProgress('저장 중...')
+      const selectedExercise = exercises.find(e => e.id === selectedExerciseId)
       const saveRes = await fetch('/api/exercise-video', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'save_record',
-          title: title || '운동 영상',
+          title: selectedExercise ? selectedExercise.name_ko : (title || '운동 영상'),
           description: description || null,
           storage_path: urlData.storage_path,
           file_size_bytes: selectedFile.size,
+          exercise_id: selectedExerciseId,
         }),
       })
 
@@ -228,6 +314,9 @@ export default function MyExerciseVideoPage() {
     setTitle('')
     setDescription('')
     setUploadProgress('')
+    setSelectedExerciseId(null)
+    setExerciseSearch('')
+    setExerciseTab('prescribed')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -249,6 +338,40 @@ export default function MyExerciseVideoPage() {
         return null
     }
   }
+
+  const getSelectedExercise = () => {
+    return exercises.find(e => e.id === selectedExerciseId) || null
+  }
+
+  const getCameraDirection = (exercise: Exercise | null) => {
+    if (!exercise) return null
+    const frontIds = [3, 6, 10, 11, 14, 16, 17]
+    const sideIds = [1, 9, 12, 13, 15, 18]
+    if (frontIds.includes(exercise.id)) return '정면'
+    if (sideIds.includes(exercise.id)) return '측면'
+    return null
+  }
+
+  // 처방 운동 중 운동 DB에 있는 것 필터링
+  const prescribedInDb = prescribedExercises
+    .filter(p => exercises.some(e => e.id === p.exercise_id))
+    .map(p => {
+      const ex = exercises.find(e => e.id === p.exercise_id)!
+      return ex
+    })
+
+  // 전체 운동 검색 필터
+  const filteredExercises = exercises.filter(e => {
+    if (!exerciseSearch) return true
+    return e.name_ko.includes(exerciseSearch) || e.category.includes(exerciseSearch)
+  })
+
+  // 카테고리별 그룹
+  const groupedExercises = filteredExercises.reduce((acc, e) => {
+    if (!acc[e.category]) acc[e.category] = []
+    acc[e.category].push(e)
+    return acc
+  }, {} as Record<string, Exercise[]>)
 
   if (loading) {
     return (
@@ -274,22 +397,29 @@ export default function MyExerciseVideoPage() {
             </button>
             <div>
               <h1 className="text-lg font-bold text-gray-900">내 운동 촬영</h1>
-              <p className="text-[11px] text-gray-500">운동 영상을 올리고 트레이너 피드백을 받으세요</p>
+              <p className="text-[11px] text-gray-500">운동 영상을 올리고 AI 분석 또는 트레이너 피드백을 받으세요</p>
             </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-4 space-y-4">
-        {/* 🔴 업로드 제한 안내 */}
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-          <p className="text-xs text-red-700 font-bold mb-1">⚠️ 업로드 제한 안내</p>
-          <p className="text-[11px] text-red-600">
-            최대 <strong>15초 / 30MB</strong> 이하 동영상만 업로드 가능합니다.
-          </p>
-          <p className="text-[11px] text-red-500 mt-0.5">
-            오늘 업로드: {todayCount}/5개
-          </p>
+        {/* 업로드 제한 + AI 분석 잔여 안내 */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">📹</span>
+              <span className="text-xs text-gray-600">오늘 업로드: <strong className="text-gray-900">{todayCount}/5개</strong></span>
+            </div>
+            <span className="text-[10px] text-gray-400">15초 / 30MB 이하</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">🤖</span>
+              <span className="text-xs text-gray-600">이번 주 AI 분석: <strong className="text-gray-900">{remainingAnalyses}/5회</strong> 남음</span>
+            </div>
+            <span className="text-[10px] text-gray-400">매주 월요일 초기화</span>
+          </div>
         </div>
 
         {/* 업로드 버튼 */}
@@ -339,7 +469,6 @@ export default function MyExerciseVideoPage() {
           </button>
         </div>
 
-        {/* 숨겨진 파일 입력 */}
         <input
           ref={fileInputRef}
           type="file"
@@ -348,14 +477,13 @@ export default function MyExerciseVideoPage() {
           className="hidden"
         />
 
-        {/* 안내 */}
+        {/* 촬영 팁 */}
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
           <p className="text-xs text-blue-800 font-medium mb-1">💡 촬영 팁</p>
           <div className="text-[11px] text-blue-600 space-y-0.5">
             <p>• 전신이 보이도록 1~2m 거리에서 촬영하세요</p>
-            <p>• 밝은 곳에서 촬영하면 트레이너가 자세를 더 잘 볼 수 있어요</p>
-            <p>• 1세트 전체를 촬영하는 것을 추천합니다</p>
-            <p>• 최대 30MB까지 업로드 가능합니다</p>
+            <p>• 밝은 곳에서 촬영하면 AI가 자세를 더 정확히 분석해요</p>
+            <p>• 몸에 밀착된 옷 착용을 추천합니다</p>
           </div>
         </div>
 
@@ -383,11 +511,15 @@ export default function MyExerciseVideoPage() {
                   <div className="p-3.5">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <p className="font-bold text-sm text-gray-900">{video.title}</p>
                           {getStatusBadge(video.status)}
+                          {video.exercises?.ai_analysis_enabled && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">AI 분석 가능</span>
+                          )}
                         </div>
                         <p className="text-[11px] text-gray-400">
+                          {video.exercises ? `${CATEGORY_LABELS[video.exercises.category] || video.exercises.category} · ` : ''}
                           {new Date(video.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           {video.file_size_bytes ? ` · ${formatFileSize(video.file_size_bytes)}` : ''}
                         </p>
@@ -430,7 +562,66 @@ export default function MyExerciseVideoPage() {
                       </div>
                     )}
 
-                    {video.status === 'uploaded' && (
+                    {/* AI 분석 결과 (아코디언) */}
+                    {video.ai_analysis && video.ai_analysis.analysis_status === 'completed' && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => setExpandedAnalysis(expandedAnalysis === video.id ? null : video.id)}
+                          className="w-full flex items-center justify-between bg-purple-50 border border-purple-100 rounded-lg px-3 py-2.5"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm">🤖</span>
+                            <p className="text-[11px] font-bold text-purple-800">AI 자세 분석 결과</p>
+                            <span className="text-[10px] text-purple-500">
+                              {new Date(video.ai_analysis.created_at).toLocaleDateString('ko-KR')}
+                            </span>
+                          </div>
+                          <svg
+                            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2"
+                            strokeLinecap="round" strokeLinejoin="round"
+                            className={`transition-transform ${expandedAnalysis === video.id ? 'rotate-180' : ''}`}
+                          >
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        </button>
+                        {expandedAnalysis === video.id && (
+                          <div className="bg-purple-50 border border-t-0 border-purple-100 rounded-b-lg px-3 py-3">
+                            <div className="text-xs text-purple-900 leading-relaxed whitespace-pre-line">
+                              {video.ai_analysis.ai_feedback}
+                            </div>
+                            <p className="text-[10px] text-purple-400 mt-3 pt-2 border-t border-purple-200">
+                              ⚕️ 이 분석은 AI 자세 추정이며, 의학적 진단이나 처방이 아닙니다. 통증이 있거나 상태가 악화되면 담당 의사와 상담하세요.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* AI 분석 미지원 운동 안내 */}
+                    {video.exercises && !video.exercises.ai_analysis_enabled && !video.trainer_feedback && (
+                      <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-sm">ℹ️</span>
+                          <p className="text-[11px] font-bold text-gray-600">AI 분석 미지원</p>
+                        </div>
+                        <p className="text-[11px] text-gray-500 leading-relaxed">
+                          이 운동은 동작 범위가 작거나 카메라 각도 특성상 AI 자세 분석의 정확도를 보장하기 어려워 분석을 제공하지 않습니다.
+                          정확한 자세 피드백이 필요하시면 프리미엄 플랜의 1:1 트레이너 피드백을 이용해주세요.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* AI 분석 가능 + 아직 미분석 */}
+                    {video.exercises?.ai_analysis_enabled && !video.ai_analysis && !video.trainer_feedback && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-[11px] text-purple-500">🤖 AI 자세 분석 가능</span>
+                        <span className="text-[11px] text-gray-400">·</span>
+                        <span className="text-[11px] text-yellow-600">트레이너 피드백 대기 중</span>
+                      </div>
+                    )}
+
+                    {/* 운동 미선택 + 피드백 없음 */}
+                    {!video.exercises && !video.trainer_feedback && video.status === 'uploaded' && (
                       <div className="mt-2 flex items-center gap-1.5 text-[11px] text-yellow-600">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         <span>트레이너 피드백을 기다리고 있어요</span>
@@ -444,10 +635,10 @@ export default function MyExerciseVideoPage() {
         </div>
       </main>
 
-      {/* 업로드 모달 */}
+      {/* 업로드 모달 (운동 선택 추가) */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
-          <div className="bg-white rounded-t-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+          <div className="bg-white rounded-t-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900">영상 업로드</h3>
@@ -463,7 +654,7 @@ export default function MyExerciseVideoPage() {
                   <video
                     src={previewUrl}
                     controls
-                    className="w-full max-h-48 object-contain"
+                    className="w-full max-h-40 object-contain"
                     playsInline
                   />
                 </div>
@@ -475,24 +666,148 @@ export default function MyExerciseVideoPage() {
                 </p>
               )}
 
+              {/* ★ 운동 선택 */}
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">제목</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="예: 외회전 운동 1세트"
-                  className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                />
+                <label className="text-sm font-bold text-gray-900 block mb-2">
+                  어떤 운동을 촬영했나요? <span className="text-red-500">*</span>
+                </label>
+
+                {/* 탭: 처방 운동 / 전체 운동 */}
+                <div className="flex gap-1 mb-2">
+                  <button
+                    onClick={() => setExerciseTab('prescribed')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition ${
+                      exerciseTab === 'prescribed' ? 'bg-sky-500 text-white' : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    나의 처방 운동 {prescribedInDb.length > 0 && `(${prescribedInDb.length})`}
+                  </button>
+                  <button
+                    onClick={() => setExerciseTab('all')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition ${
+                      exerciseTab === 'all' ? 'bg-sky-500 text-white' : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    전체 운동
+                  </button>
+                </div>
+
+                {/* 전체 운동 검색 */}
+                {exerciseTab === 'all' && (
+                  <input
+                    type="text"
+                    value={exerciseSearch}
+                    onChange={(e) => setExerciseSearch(e.target.value)}
+                    placeholder="운동 이름으로 검색..."
+                    className="w-full border rounded-lg px-3 py-2 text-sm mb-2 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  />
+                )}
+
+                {/* 운동 목록 */}
+                <div className="max-h-48 overflow-y-auto border rounded-xl">
+                  {exerciseTab === 'prescribed' ? (
+                    prescribedInDb.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-gray-400">
+                        처방된 운동이 없습니다. 전체 운동에서 선택해주세요.
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {prescribedInDb.map(ex => (
+                          <button
+                            key={ex.id}
+                            onClick={() => setSelectedExerciseId(ex.id)}
+                            className={`w-full text-left px-3 py-2.5 flex items-center justify-between transition ${
+                              selectedExerciseId === ex.id ? 'bg-sky-50' : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <div>
+                              <p className={`text-sm ${selectedExerciseId === ex.id ? 'font-bold text-sky-700' : 'text-gray-900'}`}>{ex.name_ko}</p>
+                              <p className="text-[10px] text-gray-400">{CATEGORY_LABELS[ex.category] || ex.category}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {ex.ai_analysis_enabled && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">AI</span>
+                              )}
+                              {selectedExerciseId === ex.id && (
+                                <span className="text-sky-500 text-lg">✓</span>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    <div className="divide-y">
+                      {Object.keys(groupedExercises).length === 0 ? (
+                        <div className="p-4 text-center text-xs text-gray-400">검색 결과가 없습니다.</div>
+                      ) : (
+                        Object.entries(groupedExercises).map(([category, exs]) => (
+                          <div key={category}>
+                            <div className="px-3 py-1.5 bg-gray-50 sticky top-0">
+                              <p className="text-[10px] font-bold text-gray-500">{CATEGORY_LABELS[category] || category}</p>
+                            </div>
+                            {exs.map(ex => (
+                              <button
+                                key={ex.id}
+                                onClick={() => setSelectedExerciseId(ex.id)}
+                                className={`w-full text-left px-3 py-2 flex items-center justify-between transition ${
+                                  selectedExerciseId === ex.id ? 'bg-sky-50' : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <p className={`text-sm ${selectedExerciseId === ex.id ? 'font-bold text-sky-700' : 'text-gray-900'}`}>{ex.name_ko}</p>
+                                <div className="flex items-center gap-1.5">
+                                  {ex.ai_analysis_enabled && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">AI</span>
+                                  )}
+                                  {selectedExerciseId === ex.id && (
+                                    <span className="text-sky-500 text-lg">✓</span>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 선택된 운동 + 촬영 가이드 */}
+                {selectedExerciseId && (() => {
+                  const sel = getSelectedExercise()
+                  const dir = getCameraDirection(sel)
+                  return sel ? (
+                    <div className="mt-2 bg-sky-50 border border-sky-200 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">✅</span>
+                          <p className="text-xs font-bold text-sky-800">{sel.name_ko}</p>
+                        </div>
+                        {sel.ai_analysis_enabled && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">AI 분석 가능</span>
+                        )}
+                      </div>
+                      {dir && (
+                        <p className="text-[10px] text-sky-600 mt-1">
+                          📷 권장 촬영 방향: <strong>{dir}</strong>에서 촬영해주세요
+                        </p>
+                      )}
+                      {!sel.ai_analysis_enabled && (
+                        <p className="text-[10px] text-gray-500 mt-1">ℹ️ 이 운동은 AI 자세 분석이 지원되지 않습니다</p>
+                      )}
+                    </div>
+                  ) : null
+                })()}
               </div>
 
+              {/* 메모 */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">메모 (선택)</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="트레이너에게 전달할 내용이 있으면 적어주세요"
-                  className="w-full border rounded-xl px-3 py-2.5 text-sm h-20 resize-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  className="w-full border rounded-xl px-3 py-2.5 text-sm h-16 resize-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 />
               </div>
 
@@ -514,7 +829,7 @@ export default function MyExerciseVideoPage() {
                 </button>
                 <button
                   onClick={handleUpload}
-                  disabled={uploading || !selectedFile}
+                  disabled={uploading || !selectedFile || !selectedExerciseId}
                   className="flex-1 py-3 rounded-xl text-white font-bold text-sm disabled:opacity-50 transition"
                   style={{ background: 'linear-gradient(135deg, #059669, #10B981)' }}
                 >
