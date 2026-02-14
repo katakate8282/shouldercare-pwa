@@ -542,7 +542,6 @@ export default function DashboardPage() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 py-3 space-y-3">
-          {/* 전체 현황 요약 */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div className="bg-white rounded-lg p-3 shadow-sm text-center">
               <p className="text-2xl font-bold text-blue-600">{totalPatients}</p>
@@ -562,7 +561,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 주간 트렌드 그래프 */}
           <div className="bg-white rounded-lg shadow-sm p-4">
             <h2 className="font-semibold text-gray-900 mb-3">📈 주간 트렌드 (최근 4주)</h2>
             <div className="space-y-3">
@@ -575,18 +573,12 @@ export default function DashboardPage() {
                   <div className="flex gap-1">
                     <div className="flex-1">
                       <div className="w-full bg-gray-100 rounded-full h-3">
-                        <div
-                          className="h-3 rounded-full bg-blue-500"
-                          style={{ width: `${Math.round((week.exercises / maxTrend) * 100)}%` }}
-                        />
+                        <div className="h-3 rounded-full bg-blue-500" style={{ width: `${Math.round((week.exercises / maxTrend) * 100)}%` }} />
                       </div>
                     </div>
                     <div className="flex-1">
                       <div className="w-full bg-gray-100 rounded-full h-3">
-                        <div
-                          className="h-3 rounded-full bg-orange-400"
-                          style={{ width: `${Math.round((week.painLogs / maxTrend) * 100)}%` }}
-                        />
+                        <div className="h-3 rounded-full bg-orange-400" style={{ width: `${Math.round((week.painLogs / maxTrend) * 100)}%` }} />
                       </div>
                     </div>
                   </div>
@@ -599,28 +591,18 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 관리 메뉴 */}
           <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => router.push('/admin')}
-              className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow"
-            >
+            <button onClick={() => router.push('/admin')} className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow">
               <span className="text-xl mb-1.5 block">⚙️</span>
               <p className="font-semibold text-gray-900 text-sm">관리자</p>
               <p className="text-xs text-gray-600">회원·트레이너 관리</p>
             </button>
-            <button
-              onClick={() => router.push('/admin/reports')}
-              className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow"
-            >
+            <button onClick={() => router.push('/admin/reports')} className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow">
               <span className="text-xl mb-1.5 block">📊</span>
               <p className="font-semibold text-gray-900 text-sm">통계 리포트</p>
               <p className="text-xs text-gray-600">성과 분석·PDF</p>
             </button>
-            <button
-              onClick={() => router.push('/messages')}
-              className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow"
-            >
+            <button onClick={() => router.push('/messages')} className="bg-white rounded-lg p-3 shadow-sm text-left hover:shadow-md transition-shadow">
               <span className="text-xl mb-1.5 block">💬</span>
               <p className="font-semibold text-gray-900 text-sm">메시지</p>
               <p className="text-xs text-gray-600">대화 목록</p>
@@ -657,7 +639,6 @@ export default function DashboardPage() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 py-3 space-y-3">
-          {/* 상단 메뉴 */}
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => router.push('/trainer')} className="bg-blue-500 text-white rounded-lg p-3 text-center hover:bg-blue-600 transition">
               <span className="text-xl block mb-1">👨‍⚕️</span>
@@ -680,7 +661,6 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* 이번 주 트레이너 활동 */}
           <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg p-4 text-white">
             <p className="text-xs opacity-80">이번 주 내 활동</p>
             <div className="flex items-center justify-between mt-1">
@@ -703,7 +683,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 담당 환자 목록 */}
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-3 border-b">
               <h2 className="font-semibold text-gray-900">🏥 담당 환자</h2>
@@ -733,7 +712,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 담당 환자 오늘 활동 피드 */}
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-3 border-b">
               <h2 className="font-semibold text-gray-900">📋 오늘의 환자 활동</h2>
@@ -795,7 +773,6 @@ export default function DashboardPage() {
           </div>
         </main>
 
-        {/* 트레이너 회원 상세 모달 */}
         {trainerSelectedPatient && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] overflow-y-auto">
@@ -813,33 +790,18 @@ export default function DashboardPage() {
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                   {trainerSelectedPatient.hospital_code && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">병원 코드</span>
-                      <span className="font-medium">{trainerSelectedPatient.hospital_code}</span>
-                    </div>
+                    <div className="flex justify-between text-sm"><span className="text-gray-500">병원 코드</span><span className="font-medium">{trainerSelectedPatient.hospital_code}</span></div>
                   )}
                   {trainerSelectedPatient.diagnosis && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">진단명</span>
-                      <span className="font-medium">{trainerSelectedPatient.diagnosis}</span>
-                    </div>
+                    <div className="flex justify-between text-sm"><span className="text-gray-500">진단명</span><span className="font-medium">{trainerSelectedPatient.diagnosis}</span></div>
                   )}
                   {trainerSelectedPatient.treatment && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">시술명</span>
-                      <span className="font-medium">{trainerSelectedPatient.treatment}</span>
-                    </div>
+                    <div className="flex justify-between text-sm"><span className="text-gray-500">시술명</span><span className="font-medium">{trainerSelectedPatient.treatment}</span></div>
                   )}
                   {trainerSelectedPatient.rehab_goal && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">재활 목표</span>
-                      <span className="font-medium">{trainerSelectedPatient.rehab_goal}</span>
-                    </div>
+                    <div className="flex justify-between text-sm"><span className="text-gray-500">재활 목표</span><span className="font-medium">{trainerSelectedPatient.rehab_goal}</span></div>
                   )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">가입일</span>
-                    <span className="font-medium">{trainerSelectedPatient.created_at ? new Date(trainerSelectedPatient.created_at).toLocaleDateString('ko-KR') : '-'}</span>
-                  </div>
+                  <div className="flex justify-between text-sm"><span className="text-gray-500">가입일</span><span className="font-medium">{trainerSelectedPatient.created_at ? new Date(trainerSelectedPatient.created_at).toLocaleDateString('ko-KR') : '-'}</span></div>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => { router.push(`/messages/${trainerSelectedPatient.id}`); setTrainerSelectedPatient(null) }} className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm hover:bg-blue-600">💬 메시지</button>
@@ -1005,9 +967,7 @@ export default function DashboardPage() {
 
         {/* ── 1) 최상단: 순위 + 통계 + 주간리포트 ── */}
         <div className="rounded-2xl overflow-hidden">
-          {/* 순위 히어로 */}
           <div className="p-4 pb-3 text-white" style={{ background: 'linear-gradient(135deg, #0369A1 0%, #0284C7 40%, #38BDF8 100%)' }}>
-            {/* 순위 */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2.5">
                 <span className="text-3xl">{myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏅'}</span>
@@ -1024,7 +984,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 통계 3열 */}
             <div className="grid grid-cols-3 gap-2 mb-2.5">
               <div className="bg-white/[0.12] backdrop-blur-sm rounded-lg py-2 text-center">
                 <p className="text-xl font-extrabold" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>{weekExercises}<span className="text-[10px] font-medium opacity-80">회</span></p>
@@ -1050,7 +1009,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 프로그레스 바 */}
             {weekPrescribedCount > 0 && (
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
@@ -1061,7 +1019,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 주간 리포트 + 상세보기 버튼 */}
           <div className="flex">
             <button
               onClick={() => router.push('/weekly-report')}
@@ -1083,62 +1040,58 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── 2) AI 자가테스트 / AI 분석결과 (2열) ── */}
+        {/* ── 2) AI 자가테스트 / AI 분석결과 / 통증 기록 / 내 운동 촬영 (2×2 컴팩트) ── */}
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => router.push('/self-test')}
-            className="rounded-xl p-3.5 text-left relative overflow-hidden"
+            className="rounded-xl px-3 py-2.5 text-left relative overflow-hidden flex items-center gap-2.5"
             style={{ background: 'linear-gradient(135deg, #7C3AED, #A78BFA)' }}
           >
-            <div className="absolute top-0 right-0 w-14 h-14 rounded-full bg-white/10 -mr-4 -mt-4" />
-            <div className="relative">
-              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center mb-2">
-                <span className="text-xl">🤖</span>
-              </div>
-              <p className="text-white font-bold text-[13px]">AI 자가테스트</p>
-              <p className="text-white/60 text-[10px] mt-0.5">통증 + ROM 측정</p>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+              <span className="text-base">🤖</span>
+            </div>
+            <div>
+              <p className="text-white font-bold text-[12px]">AI 자가테스트</p>
+              <p className="text-white/60 text-[10px]">통증 + ROM 측정</p>
             </div>
           </button>
           <button
             onClick={() => router.push('/self-test/history')}
-            className="rounded-xl p-3.5 text-left relative overflow-hidden"
+            className="rounded-xl px-3 py-2.5 text-left relative overflow-hidden flex items-center gap-2.5"
             style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
           >
-            <div className="absolute top-0 right-0 w-14 h-14 rounded-full bg-white/10 -mr-4 -mt-4" />
-            <div className="relative">
-              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center mb-2">
-                <span className="text-xl">📊</span>
-              </div>
-              <p className="text-white font-bold text-[13px]">AI 분석결과</p>
-              <p className="text-white/60 text-[10px] mt-0.5">진단 추정 · 추천 운동</p>
-            </div>
-          </button>
-        </div>
-
-        {/* ── 3) 통증 기록 / 내 운동 촬영 (2열) ── */}
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => router.push('/pain')}
-            className="bg-white rounded-xl p-3.5 text-left shadow-sm hover:shadow-md transition flex items-center gap-3"
-          >
-            <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+              <span className="text-base">📊</span>
             </div>
             <div>
-              <p className="text-[13px] font-bold text-slate-800">통증 기록</p>
-              <p className="text-[10px] text-slate-400">{todayPain !== null ? `오늘 ${todayPain}/10` : '오늘 기록하기'}</p>
+              <p className="text-white font-bold text-[12px]">AI 분석결과</p>
+              <p className="text-white/60 text-[10px]">진단 추정 · 추천 운동</p>
+            </div>
+          </button>
+          <button
+            onClick={() => router.push('/pain')}
+            className="rounded-xl px-3 py-2.5 text-left relative overflow-hidden flex items-center gap-2.5"
+            style={{ background: 'linear-gradient(135deg, #EA580C, #FB923C)' }}
+          >
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+              <span className="text-base">📋</span>
+            </div>
+            <div>
+              <p className="text-white font-bold text-[12px]">통증 기록</p>
+              <p className="text-white/60 text-[10px]">{todayPain !== null ? `오늘 ${todayPain}/10` : '오늘 기록하기'}</p>
             </div>
           </button>
           <button
             onClick={() => router.push('/my-exercise-video')}
-            className="bg-white rounded-xl p-3.5 text-left shadow-sm hover:shadow-md transition flex items-center gap-3"
+            className="rounded-xl px-3 py-2.5 text-left relative overflow-hidden flex items-center gap-2.5"
+            style={{ background: 'linear-gradient(135deg, #059669, #34D399)' }}
           >
-            <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center shrink-0">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+              <span className="text-base">🎬</span>
             </div>
             <div>
-              <p className="text-[13px] font-bold text-slate-800">내 운동 촬영</p>
-              <p className="text-[10px] text-slate-400">영상으로 피드백 받기</p>
+              <p className="text-white font-bold text-[12px]">내 운동 촬영</p>
+              <p className="text-white/60 text-[10px]">영상으로 피드백 받기</p>
             </div>
           </button>
         </div>
