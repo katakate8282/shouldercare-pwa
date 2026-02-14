@@ -129,7 +129,7 @@ export default function MyExerciseVideoPage() {
       }
     } catch (err) {
       setUploadProgress('')
-      alert('업로드 중 오류가 발생했습니다.')
+        alert('업로드 오류: ' + (err instanceof Error ? err.message : JSON.stringify(err)))
     }
     setUploading(false)
   }
