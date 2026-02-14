@@ -363,14 +363,41 @@ export async function runFullAnalysis(
       return { success: false, error: '관절을 정확히 감지하지 못했어요. 전신이 보이게 밝은 곳에서 다시 촬영해주세요.' }
     }
 
-    // 감지 비율 체크 (33개 중 절반 미만이면 실패)
-    const avgVisibility = frameDataList.reduce((sum, frame) => {
-      const visCount = frame.landmarks.filter(lm => lm.visibility > 0.5).length
-      return sum + visCount
-    }, 0) / frameDataList.length
+    // 감지 품질 체크: 어깨 분석에 필수인 핵심 관절이 실제로 보이는지 검증
+    const REQUIRED_LANDMARKS = [
+      11, 12, // 좌우 어깨
+      13, 14, // 좌우 팔꿈치
+      15, 16, // 좌우 손목
+      23, 24, // 좌우 엉덩이
+    ]
 
-    if (avgVisibility < 16) {
-      return { success: false, error: '일부 관절만 감지되어 정확한 분석이 어렵습니다. 전신이 보이게 다시 촬영해주세요.' }
+    let validFrames = 0
+    for (const frame of frameDataList) {
+      const requiredVisible = REQUIRED_LANDMARKS.filter(
+        idx => frame.landmarks[idx] && frame.landmarks[idx].visibility > 0.65
+      ).length
+      // 8개 핵심 관절 중 6개 이상 visibility > 0.65여야 유효 프레임
+      if (requiredVisible >= 6) validFrames++
+    }
+
+    if (validFrames < Math.ceil(frameDataList.length * 0.5)) {
+      return {
+        success: false,
+        error: '어깨·팔·엉덩이 관절이 충분히 보이지 않아요. 전신이 보이도록 1~2m 거리에서 다시 촬영해주세요.',
+      }
+    }
+
+    // 추가 검증: 핵심 관절 좌표가 실제로 의미있게 분포되어 있는지 확인
+    // (MediaPipe가 보이지 않는 관절을 비슷한 좌표로 추정하는 경우 걸러냄)
+    const firstFrame = frameDataList[0].landmarks
+    const shoulderDist = Math.abs(firstFrame[11].x - firstFrame[12].x)
+    const shoulderToHipDist = Math.abs(firstFrame[11].y - firstFrame[23].y)
+
+    if (shoulderDist < 0.03 || shoulderToHipDist < 0.05) {
+      return {
+        success: false,
+        error: '관절 위치가 정확하지 않아요. 상체 전체가 보이도록 카메라 거리를 조절해서 다시 촬영해주세요.',
+      }
     }
 
     onProgress?.('AI가 자세를 분석하고 피드백을 작성하고 있어요...')
