@@ -681,7 +681,7 @@ export default function MyExerciseVideoPage() {
                         <div className="mt-3 bg-purple-100 rounded-full h-1.5 overflow-hidden">
                           <div className="bg-purple-500 h-full rounded-full animate-pulse" style={{ width: '60%' }} />
                         </div>
-                        <p className="text-[10px] text-purple-400 mt-2">보통 10~20초 정도 소요됩니다</p>
+                        <p className="text-[10px] text-purple-400 mt-2">보통 20~30초 정도 소요됩니다</p>
                       </div>
                     )}
 
