@@ -296,14 +296,9 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3"><span className="text-xl">📧</span><span className="text-gray-900">문의하기</span></div>
               <span className="text-gray-400">→</span>
             </button>
-            <div className="w-full px-6 py-4 flex items-center justify-between opacity-50">
-              <div className="flex items-center gap-3"><span className="text-xl">📄</span><span className="text-gray-900">이용약관</span></div>
-              <span className="text-xs text-gray-400">준비중</span>
+            <button onClick={() => router.push("/terms")} className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"><div className="flex items-center gap-3"><span className="text-xl">📄</span><span className="text-gray-900">이용약관</span></div><span className="text-gray-400">→</span></button>
             </div>
-            <div className="w-full px-6 py-4 flex items-center justify-between opacity-50">
-              <div className="flex items-center gap-3"><span className="text-xl">🔐</span><span className="text-gray-900">개인정보처리방침</span></div>
-              <span className="text-xs text-gray-400">준비중</span>
-            </div>
+            <button onClick={() => router.push("/privacy")} className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"><div className="flex items-center gap-3"><span className="text-xl">🔐</span><span className="text-gray-900">개인정보처리방침</span></div><span className="text-gray-400">→</span></button>
           </div>
         </div>
 

@@ -618,6 +618,7 @@ export default function TrainerPage() {
                   )}
                 </button>
                 <button onClick={() => router.push('/dashboard')} className="text-sm text-blue-500">홈으로</button>
+                <button onClick={() => router.push("/trainer-manual")} className="text-sm text-orange-500 font-medium">📋 매뉴얼</button>
               </div>
             </div>
           </div>
