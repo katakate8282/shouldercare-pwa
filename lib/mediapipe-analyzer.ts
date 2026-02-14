@@ -341,8 +341,8 @@ export async function runFullAnalysis(
 
     onProgress?.('영상에서 프레임 추출 중...')
 
-    // 2. 프레임 추출 (5개)
-    const frames = await extractFrames(video, 5)
+    // 2. 프레임 추출 (12개 - 평균값 안정화를 위해 충분히 추출)
+    const frames = await extractFrames(video, 12)
 
     if (frames.length === 0) {
       return { success: false, error: '영상에서 프레임을 추출할 수 없습니다.' }
