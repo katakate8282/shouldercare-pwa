@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { jwtVerify } from 'jose'
+import crypto from 'crypto'
 
 const BUCKET_NAME = 'user-videos'
 
@@ -10,11 +10,27 @@ const supabaseAdmin = createClient(
 )
 
 async function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get('session')?.value
+  // Authorization 헤더 또는 session 쿠키에서 토큰 추출
+  const authHeader = req.headers.get('authorization')
+  let token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (!token) {
+    token = req.cookies.get('session')?.value || null
+  }
   if (!token) return null
+
   try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET as string))
-    return payload as { id: string; role?: string }
+    const secret = process.env.JWT_SECRET as string
+    const decoded = JSON.parse(Buffer.from(token, 'base64url').toString())
+    const { data, sig } = decoded
+
+    // 서명 검증
+    const expectedSig = crypto.createHmac('sha256', secret).update(JSON.stringify(data)).digest('hex')
+    if (sig !== expectedSig) return null
+
+    // 만료 체크
+    if (data.exp && data.exp * 1000 < Date.now()) return null
+
+    return { id: data.userId, email: data.email, role: data.role || null }
   } catch {
     return null
   }
