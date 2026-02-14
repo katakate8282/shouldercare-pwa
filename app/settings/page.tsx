@@ -424,12 +424,12 @@ export default function SettingsPage() {
           <h2 className="font-semibold text-gray-900 px-6 py-4 border-b">지원</h2>
           <div className="divide-y">
             <button
-              onClick={() => alert('자주 묻는 질문\n\nQ. 운동은 하루에 몇 번 하나요?\nA. 처방받은 운동을 하루 1~2회 권장합니다.\n\nQ. 통증이 심해지면?\nA. 운동을 중단하고 담당 트레이너에게 문의하세요.')}
+              onClick={() => router.push('/faq')}
               className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
             >
               <div className="flex items-center gap-3">
                 <span className="text-xl">❓</span>
-                <span className="text-gray-900">도움말</span>
+                <span className="text-gray-900">자주 묻는 질문</span>
               </div>
               <span className="text-gray-400">→</span>
             </button>
