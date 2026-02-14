@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 )
 
 async function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get('token')?.value
+  const token = req.cookies.get('session')?.value
   if (!token) return null
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET as string))
@@ -64,10 +64,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
 
-  // Step 1: presigned URL 발급 요청
   if (body.action === 'get_upload_url') {
     const ext = body.file_ext || 'mp4'
-    const contentType = body.content_type || 'video/mp4'
     const timestamp = Date.now()
     const storagePath = `${user.id}/${timestamp}.${ext}`
 
@@ -87,7 +85,6 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Step 2: DB 레코드 생성 (업로드 완료 후)
   if (body.action === 'save_record') {
     const { title, description, storage_path, file_size_bytes } = body
 
