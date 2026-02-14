@@ -191,6 +191,8 @@ export default function SettingsPage() {
   if (!user) return null
 
   const subscriptionLabel =
+    user.role === 'admin' ? '앱 관리자' :
+    user.role === 'trainer' ? '트레이너' :
     user.subscription_type === 'PREMIUM' ? '프리미엄 회원' :
     user.subscription_type === 'PLATINUM_PATIENT' ? '플래티넘 환자' :
     user.subscription_type === 'TRIAL' ? '무료 체험' : '일반 회원'
@@ -362,7 +364,7 @@ export default function SettingsPage() {
           <h2 className="font-semibold text-gray-900 px-6 py-4 border-b">구독 관리</h2>
           <div className="divide-y">
             <button
-              onClick={() => router.push('/subscribe')}
+              onClick={() => router.push('/subscription')}
               className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
             >
               <div className="flex items-center gap-3">
