@@ -10,7 +10,6 @@ const supabaseAdmin = createClient(
 )
 
 async function getUserFromRequest(req: NextRequest) {
-  // Authorization 헤더 또는 session 쿠키에서 토큰 추출
   const authHeader = req.headers.get('authorization')
   let token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
   if (!token) {
@@ -23,11 +22,9 @@ async function getUserFromRequest(req: NextRequest) {
     const decoded = JSON.parse(Buffer.from(token, 'base64url').toString())
     const { data, sig } = decoded
 
-    // 서명 검증
     const expectedSig = crypto.createHmac('sha256', secret).update(JSON.stringify(data)).digest('hex')
     if (sig !== expectedSig) return null
 
-    // 만료 체크
     if (data.exp && data.exp * 1000 < Date.now()) return null
 
     return { id: data.userId, email: data.email, role: data.role || null }
@@ -43,6 +40,50 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const patientId = searchParams.get('patient_id')
+  const action = searchParams.get('action')
+
+  // 운동 목록 조회 (AI 분석 가능 여부 포함)
+  if (action === 'get_exercises') {
+    const { data, error } = await supabaseAdmin
+      .from('exercises')
+      .select('id, name_ko, category, ai_analysis_enabled')
+      .eq('is_active', true)
+      .order('category')
+      .order('name_ko')
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ exercises: data })
+  }
+
+  // 환자의 처방 운동 목록 조회
+  if (action === 'get_prescribed_exercises') {
+    const { data, error } = await supabaseAdmin
+      .from('prescriptions')
+      .select('exercise_id, exercise_name')
+      .eq('patient_id', user.id)
+      .eq('status', 'active')
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ prescriptions: data })
+  }
+
+  // AI 분석 잔여 횟수 조회
+  if (action === 'get_remaining_analyses') {
+    const now = new Date()
+    const weekStart = new Date(now)
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1)
+    weekStart.setHours(0, 0, 0, 0)
+
+    const { count, error } = await supabaseAdmin
+      .from('exercise_video_analyses')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('analysis_status', 'completed')
+      .gte('created_at', weekStart.toISOString())
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ used: count || 0, remaining: Math.max(0, 5 - (count || 0)), limit: 5 })
+  }
 
   let targetUserId = user.id
   if (patientId && (user.role === 'trainer' || user.role === 'admin')) {
@@ -51,7 +92,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('user_exercise_videos')
-    .select('*')
+    .select('*, exercises:exercise_id(id, name_ko, category, ai_analysis_enabled)')
     .eq('user_id', targetUserId)
     .order('created_at', { ascending: false })
 
@@ -63,9 +104,21 @@ export async function GET(req: NextRequest) {
         .from(BUCKET_NAME)
         .createSignedUrl(video.storage_path, 3600)
 
+      // AI 분석 결과 조회
+      let aiAnalysis = null
+      if (video.ai_analysis_id) {
+        const { data: analysisData } = await supabaseAdmin
+          .from('exercise_video_analyses')
+          .select('*')
+          .eq('id', video.ai_analysis_id)
+          .single()
+        aiAnalysis = analysisData
+      }
+
       return {
         ...video,
         video_url: urlData?.signedUrl || null,
+        ai_analysis: aiAnalysis,
       }
     })
   )
@@ -102,7 +155,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.action === 'save_record') {
-    const { title, description, storage_path, file_size_bytes } = body
+    const { title, description, storage_path, file_size_bytes, exercise_id } = body
 
     if (!storage_path) {
       return NextResponse.json({ error: 'Missing storage_path' }, { status: 400 })
@@ -116,6 +169,7 @@ export async function POST(req: NextRequest) {
         description: description || null,
         storage_path,
         file_size_bytes: file_size_bytes || null,
+        exercise_id: exercise_id || null,
         status: 'uploaded',
       })
       .select()
