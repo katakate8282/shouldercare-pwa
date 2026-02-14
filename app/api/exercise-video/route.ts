@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { jwtVerify } from 'jose'
 
+const BUCKET_NAME = 'user-videos'
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -42,7 +44,7 @@ export async function GET(req: NextRequest) {
   const videosWithUrls = await Promise.all(
     (data || []).map(async (video) => {
       const { data: urlData } = await supabaseAdmin.storage
-        .from('user-exercise-videos')
+        .from(BUCKET_NAME)
         .createSignedUrl(video.storage_path, 3600)
 
       return {
@@ -134,7 +136,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   await supabaseAdmin.storage
-    .from('user-exercise-videos')
+    .from(BUCKET_NAME)
     .remove([video.storage_path])
 
   await supabaseAdmin
