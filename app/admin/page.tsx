@@ -11,6 +11,7 @@ interface User {
   email: string
   role?: string
   subscription_type?: string
+  subscription_expires_at?: string | null
   created_at?: string
   onboarding_completed?: boolean
   rehab_goal?: string
@@ -58,7 +59,33 @@ interface Hospital {
   created_at: string
 }
 
-type Tab = 'overview' | 'trainers' | 'hospitals'
+interface PaymentRecord {
+  id: string
+  user_id: string
+  order_id: string
+  payment_key: string | null
+  plan_type: string
+  amount: number
+  status: string
+  method: string | null
+  paid_at: string | null
+  cancelled_at: string | null
+  cancel_reason: string | null
+  created_at: string
+}
+
+interface Announcement {
+  id: string
+  title: string
+  content: string
+  category: string
+  is_active: boolean
+  is_pinned: boolean
+  created_at: string
+  updated_at: string
+}
+
+type Tab = 'overview' | 'trainers' | 'hospitals' | 'payments' | 'announcements'
 
 export default function AdminPage() {
   const router = useRouter()
@@ -74,11 +101,19 @@ export default function AdminPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [alerts, setAlerts] = useState<AlertItem[]>([])
   const [hospitals, setHospitals] = useState<Hospital[]>([])
+  const [payments, setPayments] = useState<PaymentRecord[]>([])
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
 
   // 모달/확장 상태
   const [expandedSection, setExpandedSection] = useState<string | null>(null)
   const [selectedMember, setSelectedMember] = useState<User | null>(null)
   const [showMemberModal, setShowMemberModal] = useState(false)
+
+  // 사용자 검색/필터
+  const [userSearchQuery, setUserSearchQuery] = useState('')
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('all')
+  const [userSubFilter, setUserSubFilter] = useState<string>('all')
+  const [showUserSearch, setShowUserSearch] = useState(false)
 
   // 트레이너 관리
   const [showAddTrainer, setShowAddTrainer] = useState(false)
@@ -107,6 +142,23 @@ export default function AdminPage() {
   const [showAffiliationModal, setShowAffiliationModal] = useState(false)
   const [affiliationTrainer, setAffiliationTrainer] = useState<User | null>(null)
   const [affiliationValue, setAffiliationValue] = useState('')
+
+  // 구독 수동 부여 모달
+  const [showSubModal, setShowSubModal] = useState(false)
+  const [subModalUser, setSubModalUser] = useState<User | null>(null)
+  const [subModalType, setSubModalType] = useState('PREMIUM')
+  const [subModalDays, setSubModalDays] = useState(30)
+  const [savingSub, setSavingSub] = useState(false)
+
+  // 결제 필터
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
+  const [paymentSearchQuery, setPaymentSearchQuery] = useState('')
+
+  // 공지 관리
+  const [showAddAnnouncement, setShowAddAnnouncement] = useState(false)
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', category: 'general', is_pinned: false })
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false)
 
   useEffect(() => {
     fetchAuthMe()
@@ -137,6 +189,8 @@ export default function AdminPage() {
       fetchTodayActivities(),
       fetchAlerts(),
       fetchHospitals(),
+      fetchPayments(),
+      fetchAnnouncements(),
     ])
   }
 
@@ -167,6 +221,24 @@ export default function AdminPage() {
       .select('*')
       .order('assigned_at', { ascending: false })
     if (data) setAssignments(data)
+  }
+
+  const fetchPayments = async () => {
+    const { data } = await supabase
+      .from('payment_history')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100)
+    if (data) setPayments(data)
+  }
+
+  const fetchAnnouncements = async () => {
+    const { data } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+    if (data) setAnnouncements(data)
   }
 
   const fetchTodayActivities = async () => {
@@ -277,6 +349,44 @@ export default function AdminPage() {
   }
   const getFreeMembers = () => patients.filter(p => !p.subscription_type || p.subscription_type === 'FREE')
 
+  // 사용자 검색/필터
+  const getFilteredUsers = () => {
+    let filtered = allUsers
+    if (userSearchQuery) {
+      const q = userSearchQuery.toLowerCase()
+      filtered = filtered.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+    }
+    if (userRoleFilter !== 'all') {
+      filtered = filtered.filter(u => (u.role || 'patient') === userRoleFilter)
+    }
+    if (userSubFilter !== 'all') {
+      if (userSubFilter === 'FREE') {
+        filtered = filtered.filter(u => !u.subscription_type || u.subscription_type === 'FREE')
+      } else {
+        filtered = filtered.filter(u => u.subscription_type === userSubFilter)
+      }
+    }
+    return filtered
+  }
+
+  // 결제 필터
+  const getFilteredPayments = () => {
+    let filtered = payments
+    if (paymentStatusFilter !== 'all') {
+      filtered = filtered.filter(p => p.status === paymentStatusFilter)
+    }
+    if (paymentSearchQuery) {
+      const q = paymentSearchQuery.toLowerCase()
+      const userMap: Record<string, string> = {}
+      allUsers.forEach(u => { userMap[u.id] = u.name.toLowerCase() + u.email.toLowerCase() })
+      filtered = filtered.filter(p => {
+        const userStr = userMap[p.user_id] || ''
+        return userStr.includes(q) || p.order_id.toLowerCase().includes(q)
+      })
+    }
+    return filtered
+  }
+
   // 트레이너 추가
   const handleAddTrainer = async () => {
     if (!newTrainerEmail.trim() || addingTrainer) return
@@ -333,16 +443,12 @@ export default function AdminPage() {
 
     setAddingHospital(true); setHospitalMessage('')
 
-    // 프리픽스 중복 확인
     const { data: existing } = await supabase.from('hospitals').select('id').eq('prefix', hospitalForm.prefix.toUpperCase()).single()
     if (existing) { setHospitalMessage('이미 사용 중인 프리픽스입니다.'); setAddingHospital(false); return }
 
-    // 병원 ID 생성
     const hospitalId = hospitalForm.prefix.toUpperCase().toLowerCase() + '_' + Date.now()
 
-    // 비밀번호 해시 (bcrypt)
     const bcryptHash = await (await import("bcryptjs")).default.hash(hospitalForm.admin_password, 10)
-    // bcrypt hash generated above
 
     const { error } = await supabase.from('hospitals').insert({
       id: hospitalId,
@@ -388,6 +494,96 @@ export default function AdminPage() {
     }
   }
 
+  // 구독 수동 부여/해제
+  const handleManualSubscription = async (action: 'grant' | 'revoke') => {
+    if (!subModalUser) return
+    setSavingSub(true)
+
+    if (action === 'grant') {
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + subModalDays)
+
+      await supabase.from('users').update({
+        subscription_type: subModalType,
+        subscription_expires_at: expiresAt.toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', subModalUser.id)
+
+      await supabase.from('subscriptions').insert({
+        user_id: subModalUser.id,
+        plan_type: subModalDays >= 365 ? 'YEARLY' : 'MONTHLY',
+        status: 'ACTIVE',
+        started_at: new Date().toISOString(),
+        expires_at: expiresAt.toISOString(),
+      })
+    } else {
+      await supabase.from('users').update({
+        subscription_type: 'FREE',
+        subscription_expires_at: null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', subModalUser.id)
+
+      await supabase.from('subscriptions').update({
+        status: 'CANCELLED',
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', subModalUser.id).eq('status', 'ACTIVE')
+    }
+
+    setSavingSub(false)
+    setShowSubModal(false)
+    setSubModalUser(null)
+    await fetchUsers()
+    // 회원 모달 업데이트
+    if (selectedMember?.id === subModalUser.id) {
+      const { data } = await supabase.from('users').select('*').eq('id', subModalUser.id).single()
+      if (data) setSelectedMember(data)
+    }
+  }
+
+  // 공지 저장
+  const handleSaveAnnouncement = async () => {
+    if (!announcementForm.title.trim() || !announcementForm.content.trim()) {
+      alert('제목과 내용을 입력해주세요')
+      return
+    }
+    setSavingAnnouncement(true)
+
+    if (editingAnnouncement) {
+      await supabase.from('announcements').update({
+        title: announcementForm.title.trim(),
+        content: announcementForm.content.trim(),
+        category: announcementForm.category,
+        is_pinned: announcementForm.is_pinned,
+        updated_at: new Date().toISOString(),
+      }).eq('id', editingAnnouncement.id)
+    } else {
+      await supabase.from('announcements').insert({
+        title: announcementForm.title.trim(),
+        content: announcementForm.content.trim(),
+        category: announcementForm.category,
+        is_pinned: announcementForm.is_pinned,
+        is_active: true,
+      })
+    }
+
+    setShowAddAnnouncement(false)
+    setEditingAnnouncement(null)
+    setAnnouncementForm({ title: '', content: '', category: 'general', is_pinned: false })
+    setSavingAnnouncement(false)
+    await fetchAnnouncements()
+  }
+
+  const handleToggleAnnouncement = async (ann: Announcement) => {
+    await supabase.from('announcements').update({ is_active: !ann.is_active, updated_at: new Date().toISOString() }).eq('id', ann.id)
+    await fetchAnnouncements()
+  }
+
+  const handleDeleteAnnouncement = async (ann: Announcement) => {
+    if (!confirm(`"${ann.title}" 공지를 삭제하시겠습니까?`)) return
+    await supabase.from('announcements').delete().eq('id', ann.id)
+    await fetchAnnouncements()
+  }
+
   const getAssignedCount = (trainerId: string) => assignments.filter(a => a.trainer_id === trainerId).length
   const getAssignedPatients = (trainerId: string) => {
     const ids = assignments.filter(a => a.trainer_id === trainerId).map(a => a.patient_id)
@@ -403,9 +599,34 @@ export default function AdminPage() {
     if (!t.trainer_affiliation || t.trainer_affiliation === 'shouldercare') return '어깨케어'
     return getHospitalName(t.trainer_affiliation)
   }
+  const getUserName = (userId: string) => allUsers.find(u => u.id === userId)?.name || '알 수 없음'
+  const getUserEmail = (userId: string) => allUsers.find(u => u.id === userId)?.email || ''
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })
+  const formatDateTime = (d: string) => new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const formatAmount = (n: number) => n.toLocaleString('ko-KR')
+
   const openMemberDetail = (u: User) => { setSelectedMember(u); setShowMemberModal(true) }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PAID': return 'bg-green-100 text-green-700'
+      case 'PENDING': return 'bg-yellow-100 text-yellow-700'
+      case 'CANCELLED': return 'bg-red-100 text-red-700'
+      case 'FAILED': return 'bg-gray-100 text-gray-500'
+      default: return 'bg-gray-100 text-gray-500'
+    }
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'PAID': return '결제완료'
+      case 'PENDING': return '대기중'
+      case 'CANCELLED': return '취소'
+      case 'FAILED': return '실패'
+      default: return status
+    }
+  }
 
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-gray-500">로딩중...</div></div>
   if (!user) return null
@@ -415,6 +636,16 @@ export default function AdminPage() {
   const trialCount = getSubscriptionMembers('TRIAL').length
   const freeCount = getFreeMembers().length
   const newCount = getNewMembers().length
+
+  // 결제 통계
+  const paidPayments = payments.filter(p => p.status === 'PAID')
+  const totalRevenue = paidPayments.reduce((sum, p) => sum + p.amount, 0)
+  const thisMonthPayments = paidPayments.filter(p => {
+    const d = new Date(p.paid_at || p.created_at)
+    const now = new Date()
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  })
+  const thisMonthRevenue = thisMonthPayments.reduce((sum, p) => sum + p.amount, 0)
 
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
@@ -427,10 +658,12 @@ export default function AdminPage() {
             </div>
             <button onClick={() => router.push('/admin/reports')} className="text-sm bg-purple-500 text-white px-3 py-1.5 rounded-lg hover:bg-purple-600">📊 리포트</button>
           </div>
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-            <button onClick={() => { setTab('overview'); setSelectedTrainer(null); setSelectedHospital(null) }} className={`flex-1 py-2 text-xs font-medium rounded-md ${tab === 'overview' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>현황·회원</button>
-            <button onClick={() => { setTab('trainers'); setSelectedTrainer(null); setSelectedHospital(null) }} className={`flex-1 py-2 text-xs font-medium rounded-md ${tab === 'trainers' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>트레이너</button>
-            <button onClick={() => { setTab('hospitals'); setSelectedTrainer(null); setSelectedHospital(null) }} className={`flex-1 py-2 text-xs font-medium rounded-md ${tab === 'hospitals' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>🏥 병원</button>
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 overflow-x-auto">
+            <button onClick={() => { setTab('overview'); setSelectedTrainer(null); setSelectedHospital(null) }} className={`flex-1 py-2 text-xs font-medium rounded-md whitespace-nowrap ${tab === 'overview' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>현황·회원</button>
+            <button onClick={() => { setTab('trainers'); setSelectedTrainer(null); setSelectedHospital(null) }} className={`flex-1 py-2 text-xs font-medium rounded-md whitespace-nowrap ${tab === 'trainers' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>트레이너</button>
+            <button onClick={() => { setTab('hospitals'); setSelectedTrainer(null); setSelectedHospital(null) }} className={`flex-1 py-2 text-xs font-medium rounded-md whitespace-nowrap ${tab === 'hospitals' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>🏥 병원</button>
+            <button onClick={() => { setTab('payments'); setSelectedTrainer(null); setSelectedHospital(null) }} className={`flex-1 py-2 text-xs font-medium rounded-md whitespace-nowrap ${tab === 'payments' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>💳 결제</button>
+            <button onClick={() => { setTab('announcements'); setSelectedTrainer(null); setSelectedHospital(null) }} className={`flex-1 py-2 text-xs font-medium rounded-md whitespace-nowrap ${tab === 'announcements' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>📢 공지</button>
           </div>
         </div>
       </header>
@@ -442,7 +675,12 @@ export default function AdminPage() {
           <>
             {/* 구독 회원 현황 */}
             <div className="bg-white rounded-lg shadow-sm">
-              <div className="p-3 border-b"><h2 className="font-semibold text-gray-900">💎 구독 회원 현황</h2></div>
+              <div className="p-3 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">💎 구독 회원 현황</h2>
+                <button onClick={() => setShowUserSearch(!showUserSearch)} className="text-xs bg-gray-100 px-2.5 py-1.5 rounded-lg hover:bg-gray-200">
+                  🔍 회원 검색
+                </button>
+              </div>
               <div className="divide-y">
                 {[
                   { label: '프리미엄', count: premiumCount, type: 'PREMIUM', color: 'text-purple-600', bg: 'bg-purple-50' },
@@ -470,6 +708,64 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
+
+            {/* 사용자 검색/필터 */}
+            {showUserSearch && (
+              <div className="bg-white rounded-lg shadow-sm">
+                <div className="p-3 border-b"><h2 className="font-semibold text-gray-900">🔍 전체 사용자 검색</h2></div>
+                <div className="p-3 space-y-3">
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={e => setUserSearchQuery(e.target.value)}
+                    placeholder="이름 또는 이메일로 검색..."
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <div className="flex gap-2">
+                    <select value={userRoleFilter} onChange={e => setUserRoleFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs">
+                      <option value="all">전체 역할</option>
+                      <option value="patient">환자</option>
+                      <option value="trainer">트레이너</option>
+                      <option value="admin">관리자</option>
+                    </select>
+                    <select value={userSubFilter} onChange={e => setUserSubFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs">
+                      <option value="all">전체 구독</option>
+                      <option value="FREE">무료</option>
+                      <option value="PREMIUM">프리미엄</option>
+                      <option value="PLATINUM_PATIENT">플래티넘</option>
+                      <option value="TRIAL">체험</option>
+                    </select>
+                    <span className="text-xs text-gray-500 self-center ml-auto">{getFilteredUsers().length}명</span>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto divide-y border rounded-lg">
+                    {getFilteredUsers().slice(0, 50).map(u => (
+                      <button key={u.id} onClick={() => openMemberDetail(u)} className="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{u.name}</p>
+                          <p className="text-xs text-gray-500">{u.email}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                            u.role === 'admin' ? 'bg-red-100 text-red-700' :
+                            u.role === 'trainer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                          }`}>{u.role === 'admin' ? '관리자' : u.role === 'trainer' ? '트레이너' : '환자'}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                            u.subscription_type === 'PREMIUM' ? 'bg-purple-100 text-purple-700' :
+                            u.subscription_type === 'PLATINUM_PATIENT' ? 'bg-blue-100 text-blue-700' :
+                            u.subscription_type === 'TRIAL' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                          }`}>{
+                            u.subscription_type === 'PREMIUM' ? '프리미엄' :
+                            u.subscription_type === 'PLATINUM_PATIENT' ? '플래티넘' :
+                            u.subscription_type === 'TRIAL' ? '체험' : '무료'
+                          }</span>
+                        </div>
+                      </button>
+                    ))}
+                    {getFilteredUsers().length === 0 && <p className="text-center text-gray-400 py-4 text-sm">검색 결과 없음</p>}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 신규 / 무료 */}
             <div className="grid grid-cols-2 gap-3">
@@ -754,8 +1050,6 @@ export default function AdminPage() {
         {tab === 'hospitals' && selectedHospital && (
           <>
             <button onClick={() => setSelectedHospital(null)} className="text-sm text-blue-500 mb-2">← 병원 목록</button>
-
-            {/* 병원 정보 카드 */}
             <div className="bg-white rounded-lg shadow-sm p-4">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center"><span className="text-xl">🏥</span></div>
@@ -784,8 +1078,6 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
-
-            {/* 소속 트레이너 */}
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-3 border-b">
                 <h2 className="font-semibold text-gray-900">👨‍⚕️ 소속 트레이너 ({getHospitalTrainers(selectedHospital.id).length}명)</h2>
@@ -803,6 +1095,181 @@ export default function AdminPage() {
                       <p className="text-xs text-gray-500">담당 {getAssignedCount(t.id)}명</p>
                     </div>
                     <button onClick={() => router.push(`/messages/${t.id}`)} className="text-xs bg-blue-50 text-blue-600 px-2 py-1.5 rounded-lg">💬</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ====== 💳 결제 탭 ====== */}
+        {tab === 'payments' && (
+          <>
+            {/* 결제 통계 */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white rounded-lg shadow-sm p-3 text-center">
+                <p className="text-xs text-gray-500">전체 결제</p>
+                <p className="text-lg font-bold text-gray-900">{paidPayments.length}건</p>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm p-3 text-center">
+                <p className="text-xs text-gray-500">이번 달 매출</p>
+                <p className="text-lg font-bold text-blue-600">₩{formatAmount(thisMonthRevenue)}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm p-3 text-center">
+                <p className="text-xs text-gray-500">누적 매출</p>
+                <p className="text-lg font-bold text-green-600">₩{formatAmount(totalRevenue)}</p>
+              </div>
+            </div>
+
+            {/* 결제 내역 */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-3 border-b">
+                <h2 className="font-semibold text-gray-900 mb-2">💳 결제 내역</h2>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={paymentSearchQuery}
+                    onChange={e => setPaymentSearchQuery(e.target.value)}
+                    placeholder="이름/이메일/주문번호..."
+                    className="flex-1 border rounded-lg px-3 py-1.5 text-xs"
+                  />
+                  <select value={paymentStatusFilter} onChange={e => setPaymentStatusFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs">
+                    <option value="all">전체</option>
+                    <option value="PAID">결제완료</option>
+                    <option value="PENDING">대기중</option>
+                    <option value="CANCELLED">취소</option>
+                    <option value="FAILED">실패</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="divide-y">
+                {getFilteredPayments().length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 text-sm">결제 내역이 없습니다</div>
+                ) : getFilteredPayments().map(p => (
+                  <div key={p.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between mb-1">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900 text-sm">{getUserName(p.user_id)}</p>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${getStatusBadge(p.status)}`}>
+                            {getStatusLabel(p.status)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">{getUserEmail(p.user_id)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900 text-sm">₩{formatAmount(p.amount)}</p>
+                        <p className="text-[10px] text-gray-400">{p.plan_type === 'YEARLY' ? '연간' : '월간'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-gray-400">
+                      <span>{p.order_id}</span>
+                      <span>{p.paid_at ? formatDateTime(p.paid_at) : formatDateTime(p.created_at)}</span>
+                    </div>
+                    {p.method && <p className="text-[11px] text-gray-400 mt-0.5">결제수단: {p.method}</p>}
+                    {p.cancel_reason && <p className="text-[11px] text-red-400 mt-0.5">취소사유: {p.cancel_reason}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ====== 📢 공지사항 탭 ====== */}
+        {tab === 'announcements' && (
+          <>
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-3 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">📢 공지사항</h2>
+                <button onClick={() => {
+                  setEditingAnnouncement(null)
+                  setAnnouncementForm({ title: '', content: '', category: 'general', is_pinned: false })
+                  setShowAddAnnouncement(true)
+                }} className="text-sm bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600">+ 작성</button>
+              </div>
+
+              {/* 공지 작성/수정 폼 */}
+              {showAddAnnouncement && (
+                <div className="p-4 bg-blue-50 border-b space-y-3">
+                  <p className="text-sm font-semibold text-gray-800">{editingAnnouncement ? '공지 수정' : '새 공지 작성'}</p>
+                  <input
+                    value={announcementForm.title}
+                    onChange={e => setAnnouncementForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="제목 *"
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                  />
+                  <textarea
+                    value={announcementForm.content}
+                    onChange={e => setAnnouncementForm(f => ({ ...f, content: e.target.value }))}
+                    placeholder="내용 *"
+                    rows={4}
+                    className="w-full border rounded-lg px-3 py-2 text-sm resize-none"
+                  />
+                  <div className="flex gap-2 items-center">
+                    <select value={announcementForm.category} onChange={e => setAnnouncementForm(f => ({ ...f, category: e.target.value }))}
+                      className="border rounded-lg px-2 py-1.5 text-xs">
+                      <option value="general">일반</option>
+                      <option value="update">업데이트</option>
+                      <option value="event">이벤트</option>
+                      <option value="notice">중요</option>
+                    </select>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={announcementForm.is_pinned}
+                        onChange={e => setAnnouncementForm(f => ({ ...f, is_pinned: e.target.checked }))}
+                        className="w-4 h-4 rounded border-gray-300" />
+                      <span className="text-xs text-gray-600">상단 고정</span>
+                    </label>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleSaveAnnouncement} disabled={savingAnnouncement}
+                      className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm hover:bg-blue-600 disabled:bg-blue-300">
+                      {savingAnnouncement ? '저장 중...' : editingAnnouncement ? '수정' : '게시'}
+                    </button>
+                    <button onClick={() => { setShowAddAnnouncement(false); setEditingAnnouncement(null) }}
+                      className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm">취소</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="divide-y">
+                {announcements.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 text-sm">등록된 공지가 없습니다</div>
+                ) : announcements.map(ann => (
+                  <div key={ann.id} className={`px-4 py-3 ${!ann.is_active ? 'opacity-50' : ''}`}>
+                    <div className="flex items-start justify-between mb-1">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          {ann.is_pinned && <span className="text-xs">📌</span>}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                            ann.category === 'notice' ? 'bg-red-100 text-red-700' :
+                            ann.category === 'update' ? 'bg-blue-100 text-blue-700' :
+                            ann.category === 'event' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                          }`}>{
+                            ann.category === 'notice' ? '중요' :
+                            ann.category === 'update' ? '업데이트' :
+                            ann.category === 'event' ? '이벤트' : '일반'
+                          }</span>
+                          {!ann.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">비활성</span>}
+                        </div>
+                        <p className="font-medium text-gray-900 text-sm">{ann.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{ann.content}</p>
+                        <p className="text-[11px] text-gray-400 mt-1">{formatDate(ann.created_at)}</p>
+                      </div>
+                      <div className="flex gap-1 ml-2 shrink-0">
+                        <button onClick={() => {
+                          setEditingAnnouncement(ann)
+                          setAnnouncementForm({ title: ann.title, content: ann.content, category: ann.category, is_pinned: ann.is_pinned })
+                          setShowAddAnnouncement(true)
+                        }} className="text-xs bg-gray-100 px-2 py-1.5 rounded-lg hover:bg-gray-200">수정</button>
+                        <button onClick={() => handleToggleAnnouncement(ann)}
+                          className={`text-xs px-2 py-1.5 rounded-lg ${ann.is_active ? 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
+                          {ann.is_active ? '숨김' : '공개'}
+                        </button>
+                        <button onClick={() => handleDeleteAnnouncement(ann)}
+                          className="text-xs text-red-500 px-2 py-1.5 hover:bg-red-50 rounded-lg">삭제</button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -829,12 +1296,41 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                <div className="flex justify-between text-sm items-center"><span className="text-gray-500">역할</span><select value={selectedMember.role || "patient"} onChange={async (e) => { const newRole = e.target.value; await supabase.from("users").update({ role: newRole }).eq("id", selectedMember.id); setSelectedMember({...selectedMember, role: newRole}); fetchAll(); }} className="text-sm font-medium border rounded px-2 py-1"><option value="patient">환자</option><option value="trainer">트레이너</option><option value="admin">관리자</option></select></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">구독</span><span className="font-medium">{
-                  selectedMember.subscription_type === 'PREMIUM' ? '프리미엄' :
-                  selectedMember.subscription_type === 'PLATINUM_PATIENT' ? '플래티넘' :
-                  selectedMember.subscription_type === 'TRIAL' ? '무료 체험' : '무료'
-                }</span></div>
+                <div className="flex justify-between text-sm items-center">
+                  <span className="text-gray-500">역할</span>
+                  <select value={selectedMember.role || "patient"} onChange={async (e) => {
+                    const newRole = e.target.value
+                    await supabase.from("users").update({ role: newRole }).eq("id", selectedMember.id)
+                    setSelectedMember({...selectedMember, role: newRole})
+                    fetchAll()
+                  }} className="text-sm font-medium border rounded px-2 py-1">
+                    <option value="patient">환자</option>
+                    <option value="trainer">트레이너</option>
+                    <option value="admin">관리자</option>
+                  </select>
+                </div>
+                <div className="flex justify-between text-sm items-center">
+                  <span className="text-gray-500">구독</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-medium px-2 py-0.5 rounded text-xs ${
+                      selectedMember.subscription_type === 'PREMIUM' ? 'bg-purple-100 text-purple-700' :
+                      selectedMember.subscription_type === 'PLATINUM_PATIENT' ? 'bg-blue-100 text-blue-700' :
+                      selectedMember.subscription_type === 'TRIAL' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                    }`}>{
+                      selectedMember.subscription_type === 'PREMIUM' ? '프리미엄' :
+                      selectedMember.subscription_type === 'PLATINUM_PATIENT' ? '플래티넘' :
+                      selectedMember.subscription_type === 'TRIAL' ? '무료 체험' : '무료'
+                    }</span>
+                    <button onClick={() => { setSubModalUser(selectedMember); setShowSubModal(true) }}
+                      className="text-[11px] text-blue-500 hover:text-blue-700 underline">변경</button>
+                  </div>
+                </div>
+                {selectedMember.subscription_expires_at && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">구독 만료</span>
+                    <span className="font-medium">{formatDate(selectedMember.subscription_expires_at)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm"><span className="text-gray-500">가입일</span><span className="font-medium">{selectedMember.created_at ? formatDate(selectedMember.created_at) : '-'}</span></div>
                 {selectedMember.rehab_goal && <div className="flex justify-between text-sm"><span className="text-gray-500">재활 목표</span><span className="font-medium">{selectedMember.rehab_goal}</span></div>}
                 {selectedMember.pain_level_initial !== undefined && selectedMember.pain_level_initial !== null && (
@@ -855,6 +1351,63 @@ export default function AdminPage() {
               <div className="flex gap-2">
                 <button onClick={() => router.push(`/messages/${selectedMember.id}`)} className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm hover:bg-blue-600">💬 메시지</button>
                 <button onClick={() => { setShowMemberModal(false); setSelectedMember(null) }} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-200">닫기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 구독 수동 부여/해제 모달 */}
+      {showSubModal && subModalUser && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-sm">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-bold text-gray-900">구독 관리</h3>
+              <button onClick={() => { setShowSubModal(false); setSubModalUser(null) }} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="font-medium text-gray-900">{subModalUser.name}</p>
+                <p className="text-xs text-gray-500">{subModalUser.email}</p>
+                <p className="text-xs text-gray-400 mt-1">현재: {
+                  subModalUser.subscription_type === 'PREMIUM' ? '프리미엄' :
+                  subModalUser.subscription_type === 'PLATINUM_PATIENT' ? '플래티넘' :
+                  subModalUser.subscription_type === 'TRIAL' ? '체험' : '무료'
+                }</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">구독 유형</label>
+                <select value={subModalType} onChange={e => setSubModalType(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="PREMIUM">프리미엄</option>
+                  <option value="PLATINUM_PATIENT">플래티넘 환자</option>
+                  <option value="TRIAL">무료 체험</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">기간</label>
+                <select value={subModalDays} onChange={e => setSubModalDays(Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value={7}>7일</option>
+                  <option value={14}>14일</option>
+                  <option value={30}>30일 (1개월)</option>
+                  <option value={90}>90일 (3개월)</option>
+                  <option value={180}>180일 (6개월)</option>
+                  <option value={365}>365일 (1년)</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => handleManualSubscription('grant')} disabled={savingSub}
+                  className="flex-1 bg-blue-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 disabled:bg-blue-300">
+                  {savingSub ? '처리 중...' : '구독 부여'}
+                </button>
+                {(subModalUser.subscription_type && subModalUser.subscription_type !== 'FREE') && (
+                  <button onClick={() => handleManualSubscription('revoke')} disabled={savingSub}
+                    className="flex-1 bg-red-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-red-600 disabled:bg-red-300">
+                    구독 해제
+                  </button>
+                )}
               </div>
             </div>
           </div>
