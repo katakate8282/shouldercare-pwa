@@ -244,7 +244,7 @@ export default function WeeklyReportPage() {
         )}
       </main>
 
-      <BottomNav userRole={user?.role || 'patient'} />
+      <BottomNav role={user?.role || 'patient'} />
     </div>
   )
 }

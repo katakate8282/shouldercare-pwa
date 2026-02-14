@@ -18,7 +18,8 @@ export default function ExerciseDetailPage({ params }: { params: { id: string } 
   const viewStartRef = { current: 0 }
   useEffect(() => {
     const load = async () => {
-      fetchAuthMe().then(r => r.ok ? r.json() : null).then(d => { if(d?.user) setCurrentUser(d.user) }).catch(() => {})      const id = parseInt(params.id)
+      fetchAuthMe().then(r => r.ok ? r.json() : null).then(d => { if(d?.user) setCurrentUser(d.user) }).catch(() => {})
+      const id = parseInt(params.id)
       if (isNaN(id)) {
         setLoading(false)
         return

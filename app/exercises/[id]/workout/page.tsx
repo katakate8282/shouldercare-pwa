@@ -12,6 +12,8 @@ interface User {
   id: string
   name: string
   email: string
+  subscription_type?: string
+  subscription_expires_at?: string | null
 }
 
 function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
@@ -49,7 +51,8 @@ export default function WorkoutPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [uploadSuccess, setUploadSuccess] = useState(false)  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type })
@@ -178,7 +181,6 @@ export default function WorkoutPage() {
 
       showToast('운동 완료! 🎉', 'success')
       setShowUploadModal(true)
-      // 업로드 모달에서 이동 처리
     } catch (error) {
       console.error('Save error:', error)
       showToast('저장 중 오류가 발생했습니다.', 'error')
@@ -186,11 +188,35 @@ export default function WorkoutPage() {
     }
   }
 
+  const handleVideoUpload = async (file: File) => {
+    if (!user || !exercise) return
+    setIsUploading(true)
+    try {
+      const res = await fetch('/api/video-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exercise_id: exercise.id, exercise_name: exercise.name_ko, file_size: file.size }),
+      })
+      const { upload_url, record_id } = await res.json()
+      if (!upload_url) throw new Error('URL error')
+      await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': 'video/mp4', 'x-upsert': 'true' }, body: file })
+      await fetch('/api/video-upload', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ record_id }) })
+      setUploadSuccess(true)
+    } catch (err) {
+      console.error(err)
+      showToast('업로드 실패', 'error')
+    }
+    setIsUploading(false)
+  }
+
   const formatTime = (secs: number) => {
     const mins = Math.floor(secs / 60)
     const remainingSecs = secs % 60
     return `${mins}:${remainingSecs.toString().padStart(2, '0')}`
   }
+
+  const sub = user ? checkSubscription(user) : null
+  const isPaid = sub && !sub.isExpired && (sub.type === 'PLATINUM_PATIENT' || sub.type === 'PREMIUM')
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-24">
@@ -330,6 +356,7 @@ export default function WorkoutPage() {
             <p className="text-sm text-gray-700">{exercise.description}</p>
           </div>
         )}
+      </main>
 
       {/* 영상 업로드 모달 */}
       {showUploadModal && (
@@ -340,52 +367,47 @@ export default function WorkoutPage() {
                 <span className="text-5xl">✅</span>
                 <h3 className="text-lg font-bold text-gray-900 mt-3">영상이 전송되었어요!</h3>
                 <p className="text-sm text-gray-500 mt-1">트레이너가 확인 후 피드백을 보내드립니다.</p>
-                <button onClick={() => router.push("/dashboard")} className="mt-4 w-full py-3 bg-sky-500 text-white rounded-xl font-bold">대시보드로 이동</button>
+                <button onClick={() => router.push('/dashboard')} className="mt-4 w-full py-3 bg-sky-500 text-white rounded-xl font-bold">대시보드로 이동</button>
               </div>
-            ) : (() => {
-              const sub = user ? checkSubscription(user) : null;
-              const isPaid = sub && !sub.isExpired && (sub.type === "PLATINUM_PATIENT" || sub.type === "PREMIUM");
-              return (
-                <>
-                  <div className="text-center mb-4">
-                    <span className="text-4xl">🎉</span>
-                    <h3 className="text-lg font-bold text-gray-900 mt-2">운동 완료!</h3>
+            ) : (
+              <>
+                <div className="text-center mb-4">
+                  <span className="text-4xl">🎉</span>
+                  <h3 className="text-lg font-bold text-gray-900 mt-2">운동 완료!</h3>
+                </div>
+                {isPaid ? (
+                  <>
+                    <p className="text-sm text-gray-500 text-center mb-4">운동 영상을 트레이너에게 보내시겠어요?</p>
+                    <label className="block w-full">
+                      <input
+                        type="file"
+                        accept="video/*"
+                        capture="user"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleVideoUpload(file)
+                        }}
+                      />
+                      <div className={`w-full py-3 rounded-xl font-bold text-center ${isUploading ? 'bg-gray-300 text-gray-500' : 'bg-sky-500 text-white'}`}>
+                        {isUploading ? '업로드 중...' : '📹 영상 촬영 / 선택하기'}
+                      </div>
+                    </label>
+                  </>
+                ) : (
+                  <div className="bg-gray-50 rounded-xl p-4 mb-2">
+                    <p className="text-sm text-gray-600 text-center">🔒 트레이너 영상 피드백은<br /><span className="font-bold text-sky-600">프리미엄 회원</span> 전용 기능입니다.</p>
+                    <button onClick={() => router.push('/subscribe')} className="mt-3 w-full py-2.5 bg-sky-500 text-white rounded-lg text-sm font-bold">프리미엄 알아보기</button>
                   </div>
-                  {isPaid ? (
-                    <>
-                      <p className="text-sm text-gray-500 text-center mb-4">운동 영상을 트레이너에게 보내시겠어요?</p>
-                      <label className="block w-full">
-                        <input type="file" accept="video/*" capture="user" className="hidden" onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file || !user || !exercise) return;
-                          setIsUploading(true);
-                          try {
-                            const res = await fetch("/api/video-upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exercise_id: exercise.id, exercise_name: exercise.name_ko, file_size: file.size }) });
-                            const { upload_url, record_id } = await res.json();
-                            if (!upload_url) throw new Error("URL error");
-                            await fetch(upload_url, { method: "PUT", headers: { "Content-Type": "video/mp4", "x-upsert": "true" }, body: file });
-                            await fetch("/api/video-upload", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ record_id }) });
-                            setUploadSuccess(true);
-                          } catch (err) { console.error(err); showToast("업로드 실패", "error"); }
-                          setIsUploading(false);
-                        }} />
-                        <div className={`w-full py-3 rounded-xl font-bold text-center ${isUploading ? "bg-gray-300 text-gray-500" : "bg-sky-500 text-white"}`}>{isUploading ? "업로드 중..." : "📹 영상 촬영 / 선택하기"}</div>
-                      </label>
-                    </>
-                  ) : (
-                    <div className="bg-gray-50 rounded-xl p-4 mb-2">
-                      <p className="text-sm text-gray-600 text-center">🔒 트레이너 영상 피드백은<br/><span className="font-bold text-sky-600">프리미엄 회원</span> 전용 기능입니다.</p>
-                      <button onClick={() => router.push("/subscribe")} className="mt-3 w-full py-2.5 bg-sky-500 text-white rounded-lg text-sm font-bold">프리미엄 알아보기</button>
-                    </div>
-                  )}
-                  <button onClick={() => router.push("/dashboard")} className="mt-3 w-full py-3 rounded-xl text-gray-500 font-medium text-sm hover:bg-gray-50">{isPaid ? "건너뛰고 대시보드로" : "대시보드로 이동"}</button>
-                </>
-              );
-            })()}
+                )}
+                <button onClick={() => router.push('/dashboard')} className="mt-3 w-full py-3 rounded-xl text-gray-500 font-medium text-sm hover:bg-gray-50">
+                  {isPaid ? '건너뛰고 대시보드로' : '대시보드로 이동'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
-      </main>
     </div>
   )
 }
