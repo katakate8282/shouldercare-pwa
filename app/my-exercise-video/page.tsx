@@ -4,6 +4,7 @@ import { fetchAuthMe, fetchWithAuth } from '@/lib/fetch-auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import BottomNav from '@/components/BottomNav'
+import { checkSubscription } from '@/lib/subscription'
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30MB
 
@@ -11,6 +12,8 @@ interface User {
   id: string
   name: string
   role?: string
+  subscription_type?: string
+  subscription_expires_at?: string | null
 }
 
 interface VideoRecord {
@@ -229,6 +232,39 @@ export default function MyExerciseVideoPage() {
   }
 
   if (!user) return null
+
+  // 구독 잠금 체크
+  const subStatus = user ? checkSubscription(user as any) : null
+
+  if (!loading && user && subStatus && !subStatus.isPremium && user.role !== 'admin' && user.role !== 'trainer') {
+    return (
+      <div className="min-h-screen bg-slate-50 pb-24">
+        <header className="bg-white shadow-sm sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 py-3.5 flex items-center gap-3">
+            <button onClick={() => router.push('/dashboard')} className="text-gray-600">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <h1 className="text-lg font-bold text-gray-900">내 운동 촬영</h1>
+          </div>
+        </header>
+        <div className="flex flex-col items-center justify-center px-6 py-20">
+          <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+            <span className="text-3xl">🔒</span>
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">프리미엄 기능입니다</h3>
+          <p className="text-sm text-gray-500 mb-6 text-center">운동 영상 업로드 및 트레이너 피드백은<br/>프리미엄 구독이 필요합니다.</p>
+          <button
+            onClick={() => router.push('/subscription')}
+            className="px-6 py-3 rounded-xl text-white font-bold text-sm"
+            style={{ background: 'linear-gradient(135deg, #0369A1, #0EA5E9)' }}
+          >
+            구독 알아보기
+          </button>
+        </div>
+        <BottomNav role="patient" unreadCount={0} />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
