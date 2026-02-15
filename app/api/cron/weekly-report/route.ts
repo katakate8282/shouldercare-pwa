@@ -90,6 +90,58 @@ export async function GET(req: Request) {
           .order('created_at', { ascending: false })
           .limit(1)
 
+        // 6. AI 영상 분석 집계
+        const { data: aiAnalyses } = await supabase
+          .from('exercise_video_analyses')
+          .select('id, exercise_id, analysis_metrics, ai_feedback, analysis_status, created_at')
+          .eq('user_id', user.id)
+          .eq('analysis_status', 'completed')
+          .gte('created_at', weekStartISO)
+          .lte('created_at', weekEndISO)
+          .order('created_at', { ascending: false })
+
+        // AI 분석 통계 계산
+        const aiAnalysisCount = aiAnalyses?.length || 0
+        let aiAvgQualityScore: number | null = null
+        let aiBestExercise: string | null = null
+        let aiSummary: string | null = null
+
+        if (aiAnalyses && aiAnalyses.length > 0) {
+          // 평균 자세 점수
+          const scores = aiAnalyses
+            .map(a => a.analysis_metrics?.quality_score)
+            .filter((s): s is number => typeof s === 'number')
+          
+          if (scores.length > 0) {
+            aiAvgQualityScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10
+          }
+
+          // 최고 점수 운동 찾기
+          const bestAnalysis = aiAnalyses.reduce((best, curr) => {
+            const currScore = curr.analysis_metrics?.quality_score || 0
+            const bestScore = best.analysis_metrics?.quality_score || 0
+            return currScore > bestScore ? curr : best
+          }, aiAnalyses[0])
+
+          if (bestAnalysis.exercise_id) {
+            const { data: exerciseData } = await supabase
+              .from('exercises')
+              .select('name_ko')
+              .eq('id', bestAnalysis.exercise_id)
+              .single()
+            aiBestExercise = exerciseData?.name_ko || null
+          }
+
+          // AI 요약 생성 (최신 분석의 피드백에서 핵심 추출)
+          const latestFeedback = aiAnalyses[0]?.ai_feedback
+          if (latestFeedback) {
+            // 피드백에서 첫 2문장 정도만 추출
+            const sentences = latestFeedback.split(/[.!]\s/).filter((s: string) => s.trim().length > 5)
+            aiSummary = sentences.slice(0, 2).join('. ').trim()
+            if (aiSummary.length > 200) aiSummary = aiSummary.substring(0, 197) + '...'
+          }
+        }
+
         // 운동 일수 계산
         const exerciseDays = new Set(
           (exerciseLogs || []).map(l => new Date(l.completed_at).toISOString().split('T')[0])
@@ -123,6 +175,10 @@ export async function GET(req: Request) {
           message_count: messageCount || 0,
           self_test_rom: selfTests?.[0]?.estimated_rom || null,
           self_test_pain: selfTests?.[0]?.pain_level || null,
+          ai_analysis_count: aiAnalysisCount,
+          ai_avg_quality_score: aiAvgQualityScore,
+          ai_best_exercise: aiBestExercise,
+          ai_summary: aiSummary,
           created_at: new Date().toISOString(),
         }
 
@@ -136,15 +192,16 @@ export async function GET(req: Request) {
           continue
         }
 
-        // 6. 푸시 알림 전송
+        // 7. 푸시 알림 전송
         if (user.fcm_token) {
           try {
             const completionEmoji = exerciseDays >= 5 ? '🎉' : exerciseDays >= 3 ? '💪' : '📊'
+            const aiPart = aiAnalysisCount > 0 ? ` · AI 분석 ${aiAnalysisCount}건` : ''
             await messaging.send({
               token: user.fcm_token,
               notification: {
                 title: `${completionEmoji} 주간 리포트가 도착했어요!`,
-                body: `이번 주 ${exerciseDays}일 운동 완료 (${Math.round((exerciseDays / 7) * 100)}%)${painAvg !== null ? ` · 평균 통증 ${painAvg}` : ''}`,
+                body: `이번 주 ${exerciseDays}일 운동 완료 (${Math.round((exerciseDays / 7) * 100)}%)${painAvg !== null ? ` · 평균 통증 ${painAvg}` : ''}${aiPart}`,
               },
               webpush: {
                 fcmOptions: {
