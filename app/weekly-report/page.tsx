@@ -21,6 +21,10 @@ interface WeeklyReport {
   message_count: number
   self_test_rom: any
   self_test_pain: number | null
+  ai_analysis_count: number
+  ai_avg_quality_score: number | null
+  ai_best_exercise: string | null
+  ai_summary: string | null
   created_at: string
 }
 
@@ -94,6 +98,19 @@ export default function WeeklyReportPage() {
     return { text: '변화 없음', color: 'text-gray-500', emoji: '➡️' }
   }
 
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-600'
+    if (score >= 60) return 'text-yellow-600'
+    return 'text-red-500'
+  }
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 90) return '훌륭해요!'
+    if (score >= 80) return '잘하고 있어요'
+    if (score >= 60) return '조금 더 신경 써봐요'
+    return '개선이 필요해요'
+  }
+
   const getDayLabels = () => ['월', '화', '수', '목', '금', '토', '일']
 
   return (
@@ -101,9 +118,10 @@ export default function WeeklyReportPage() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-3">
           <button onClick={() => router.back()} className="text-gray-600">
-          <button onClick={() => window.open("/api/report-pdf?type=weekly", "_blank")} className="text-sky-500 text-sm font-medium">PDF</button>            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h1 className="text-lg font-bold text-gray-900">주간 리포트</h1>
+          <h1 className="text-lg font-bold text-gray-900 flex-1">주간 리포트</h1>
+          <button onClick={() => window.open("/api/report-pdf?type=weekly", "_blank")} className="text-sky-500 text-sm font-medium">PDF</button>
         </div>
       </header>
 
@@ -176,6 +194,95 @@ export default function WeeklyReportPage() {
                   </div>
                 </div>
 
+                {/* AI 자세 분석 요약 */}
+                {selectedReport.ai_analysis_count > 0 && (
+                  <div className="bg-white rounded-2xl shadow-sm p-5">
+                    <h3 className="font-bold text-gray-900 mb-3">🤖 AI 자세 분석 요약</h3>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-purple-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-bold text-purple-600">{selectedReport.ai_analysis_count}건</p>
+                        <p className="text-xs text-gray-500 mt-1">AI 분석 횟수</p>
+                      </div>
+                      <div className="bg-purple-50 rounded-xl p-3 text-center">
+                        {selectedReport.ai_avg_quality_score !== null ? (
+                          <>
+                            <p className={`text-2xl font-bold ${getScoreColor(selectedReport.ai_avg_quality_score)}`}>
+                              {selectedReport.ai_avg_quality_score}점
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">평균 자세 점수</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-2xl font-bold text-gray-400">-</p>
+                            <p className="text-xs text-gray-500 mt-1">평균 자세 점수</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedReport.ai_avg_quality_score !== null && (
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-gray-500">자세 점수</span>
+                          <span className={`text-xs font-medium ${getScoreColor(selectedReport.ai_avg_quality_score)}`}>
+                            {getScoreLabel(selectedReport.ai_avg_quality_score)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-2.5">
+                          <div
+                            className={`h-2.5 rounded-full transition-all ${
+                              selectedReport.ai_avg_quality_score >= 80 ? 'bg-green-500' :
+                              selectedReport.ai_avg_quality_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${Math.min(selectedReport.ai_avg_quality_score, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedReport.ai_best_exercise && (
+                      <div className="bg-green-50 rounded-lg p-3 mb-3">
+                        <p className="text-xs text-green-700">
+                          <span className="font-bold">🏆 가장 잘한 운동:</span> {selectedReport.ai_best_exercise}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedReport.ai_summary && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                          <span className="font-bold text-gray-700">💬 AI 코멘트:</span> {selectedReport.ai_summary}
+                        </p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => router.push('/my-exercise-video')}
+                      className="w-full mt-3 py-2.5 rounded-xl text-sm font-medium text-purple-600 border border-purple-200 hover:bg-purple-50 transition"
+                    >
+                      내 운동 영상 보기 →
+                    </button>
+                  </div>
+                )}
+
+                {/* AI 분석 없을 때 안내 */}
+                {selectedReport.ai_analysis_count === 0 && (
+                  <div className="bg-white rounded-2xl shadow-sm p-5">
+                    <h3 className="font-bold text-gray-900 mb-3">🤖 AI 자세 분석</h3>
+                    <div className="text-center py-3">
+                      <p className="text-3xl mb-2">📹</p>
+                      <p className="text-sm text-gray-500 mb-1">이번 주 AI 자세 분석이 없어요</p>
+                      <p className="text-xs text-gray-400 mb-3">운동 영상을 올리면 AI가 자세를 분석해줘요</p>
+                      <button
+                        onClick={() => router.push('/my-exercise-video')}
+                        className="px-4 py-2 rounded-xl text-sm font-medium text-purple-600 border border-purple-200 hover:bg-purple-50 transition"
+                      >
+                        영상 업로드하러 가기 →
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* 통증 변화 */}
                 {selectedReport.pain_average !== null && (
                   <div className="bg-white rounded-2xl shadow-sm p-5">
@@ -214,6 +321,12 @@ export default function WeeklyReportPage() {
                       <span className="text-sm text-gray-600">💬 트레이너 메시지</span>
                       <span className="text-sm font-bold text-gray-900">{selectedReport.message_count}건</span>
                     </div>
+                    {selectedReport.ai_analysis_count > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">🤖 AI 자세 분석</span>
+                        <span className="text-sm font-bold text-purple-600">{selectedReport.ai_analysis_count}건</span>
+                      </div>
+                    )}
                     {selectedReport.self_test_rom && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-600">📐 자가테스트 ROM</span>
